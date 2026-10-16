@@ -434,6 +434,40 @@ impl Game {
         io.writes.push((path.to_string(), data));
     }
 
+    /// `H` (port extra): search for the next useful action and point at it.
+    pub async fn show_hint(&mut self) {
+        let Some(a) = self.hint(600).await else {
+            self.toast(&self.ui("Nápověda nic nenašla. Zkus jinou místnost.", "No hint found here. Try another room."));
+            return;
+        };
+        let name = |g: &mut Self, i: i32| g.item_name(i as usize).unwrap_or_default();
+        let mut msg = self.ui("Zkus: ", "Try: ");
+        if a.region == -10 {
+            msg.extend(self.ui("spojit ", "combining "));
+            msg.extend(name(self, a.item / 1000));
+            msg.extend(b" + ");
+            msg.extend(name(self, a.item % 1000));
+        } else {
+            if a.item >= 0 {
+                msg.extend(name(self, a.item));
+                msg.extend(self.ui(" na ", " on "));
+            }
+            let label = match a.region {
+                0x800 => self.ui("sebe", "yourself"),
+                0x801 => self.ui("parťáka", "your companion"),
+                r => {
+                    let l = self.cur().regions.get(r as usize).map_or(0, |g| g.label);
+                    self.label_name(l.max(0) as usize).unwrap_or_default()
+                }
+            };
+            msg.extend(label);
+            if a.region < 0x800 {
+                self.hint_mark = Some((a.room, a.region, self.clock.now() + 4000));
+            }
+        }
+        self.toast = Some((msg, self.clock.now() + 4000));
+    }
+
     pub fn toast(&mut self, text: &[u8]) {
         self.toast = Some((text.to_vec(), self.clock.now() + 2000));
     }
@@ -552,16 +586,25 @@ impl Game {
                 panel_hover = -2;
             } else if self.input.key_down && self.input.key == KEY_F5 {
                 self.write_save(QUICKSAVE, b"QUICKSAVE");
-                self.toast(b"Pozice ulo\x9eena (F9 nahraje)");
+                let m = self.ui("Pozice uložena (F9 nahraje)", "Game saved (F9 loads)");
+                self.toast(&m);
             } else if self.input.key_down && self.input.key == KEY_F9 {
                 let data = self.io.borrow().files.get(QUICKSAVE).cloned();
                 match data {
                     Some(d) if self.load(&d).is_ok() => {
-                        self.toast(b"Pozice nahr\xe1na");
+                        let m = self.ui("Pozice nahrána", "Game loaded");
+                        self.toast(&m);
                         last_room = self.cur_id();
                     }
-                    _ => self.toast(b"\x8e\xe1dn\xe1 rychl\xe1 pozice (F5 ulo\x9e\xed)"),
+                    _ => {
+                        let m = self.ui("Žádná rychlá pozice (F5 uloží)", "No quick save yet (F5 saves)");
+                        self.toast(&m);
+                    }
                 }
+                panel_hover = -2;
+            } else if self.input.key_down && self.input.key == b'H' as u16 {
+                self.hide_overlays();
+                self.show_hint().await;
                 panel_hover = -2;
             } else if self.input.key_down && self.input.key == KEY_F1 {
                 self.hide_overlays();

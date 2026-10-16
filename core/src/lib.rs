@@ -21,6 +21,7 @@ pub mod sched;
 pub mod save;
 pub mod screen;
 pub mod session;
+pub mod solver;
 pub mod settings;
 pub mod text;
 pub mod text_render;

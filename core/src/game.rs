@@ -143,6 +143,10 @@ pub struct Game {
     pub ctx: &'static str,
     /// Loaded translation and its code.
     pub lang: Option<(String, Rc<crate::lang::Lang>)>,
+    /// Waits return immediately (hint search inside a running game).
+    pub instant: bool,
+    /// Hotspot to outline for a hint, until the given time.
+    pub hint_mark: Option<(i32, i32, u64)>,
     /// Short message shown on top of the game (quick save etc.) until the given time.
     pub toast: Option<(Vec<u8>, u64)>,
 }
@@ -222,6 +226,8 @@ impl Game {
             run_next: false,
             ctx: "",
             lang: None,
+            instant: false,
+            hint_mark: None,
             toast: None,
         };
         g.apply_volumes();
@@ -317,6 +323,13 @@ impl Game {
         if self.show_hotspots {
             crate::extras::draw_hotspots(&self.rooms[self.room], frame);
         }
+        if let Some((room, region, until)) = self.hint_mark
+            && now < until
+            && room == self.rooms[self.room].id
+            && let Some(r) = self.rooms[self.room].regions.get(region as usize)
+        {
+            crate::extras::draw_outline(&r.points, frame, 0x07ff);
+        }
         if let Some((text, until)) = &self.toast {
             if now < *until {
                 crate::extras::draw_toast(&self.a.font, &self.scr.lut, text, frame);
@@ -329,6 +342,10 @@ impl Game {
     /// Wait for the next 70 ms tick boundary and collect input (the inner busy loop of every
     /// blocking routine).
     pub async fn wait_tick(&mut self) {
+        if self.instant {
+            self.poll_input();
+            return;
+        }
         self.base += TICK_MS;
         self.clock.until(self.base).await;
         self.poll_input();
@@ -336,6 +353,10 @@ impl Game {
 
     /// Absolute pacing used by animation players: wait until base + ms.
     pub async fn wait_ms(&mut self, ms: u64) {
+        if self.instant {
+            self.poll_input();
+            return;
+        }
         self.base += ms;
         self.clock.until(self.base).await;
         self.poll_input();

@@ -23,6 +23,14 @@ fn line(f: &mut [u16], (x0, y0): (i32, i32), (x1, y1): (i32, i32), c: u16) {
     }
 }
 
+pub fn draw_outline(points: &[(i32, i32)], f: &mut [u16], c: u16) {
+    for i in 0..points.len() {
+        let (a, b) = (points[i], points[(i + 1) % points.len()]);
+        line(f, a, b, c);
+        line(f, (a.0 + 1, a.1), (b.0 + 1, b.1), c);
+    }
+}
+
 /// Outline every enabled hotspot of the room.
 pub fn draw_hotspots(room: &Room, f: &mut [u16]) {
     for r in room.regions.iter().filter(|r| r.enabled && r.cursor != 0 && r.points.len() > 2) {

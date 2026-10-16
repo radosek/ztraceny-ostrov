@@ -13,7 +13,15 @@ fn main() {
         std::fs::read_dir(dir).ok()?.flatten().find(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(name)).and_then(|e| std::fs::read(e.path()).ok())
     };
     let assets = Assets::load(find).expect("assets");
-    let mut app = App::new(Rc::new(assets), Config::default(), 12345, HashMap::new());
+    let mut files = HashMap::new();
+    if let Ok(d) = std::env::var("OSTROV_FILES") {
+        for e in std::fs::read_dir(d).unwrap().flatten() {
+            if e.path().is_file() {
+                files.insert(e.file_name().to_string_lossy().into_owned(), std::fs::read(e.path()).unwrap());
+            }
+        }
+    }
+    let mut app = App::new(Rc::new(assets), Config::default(), 12345, files);
     let mut steps: Vec<(u64, String, Vec<i32>)> = a[3]
         .split(',')
         .map(|s| {

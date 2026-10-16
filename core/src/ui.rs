@@ -622,30 +622,33 @@ impl Game {
         let labels = |g: &Game| -> Vec<Vec<u8>> {
             let s = &g.io.borrow().settings;
             let c = &g.cfg;
-            let on = |b: bool| if b { "zap." } else { "vyp." };
+            let en = s.language != "cs";
+            let t = |cs: &'static str, e: &'static str| if en { e } else { cs };
+            let on = |b: bool| if b { t("zap.", "on") } else { t("vyp.", "off") };
             [
-                format!("Hlasitost hudby: {}", c.music_volume()),
-                format!("Hlasitost zvuku: {}", c.fx_volume()),
-                format!("Hlasitost řeči: {}", c.speech_volume()),
-                format!("Titulky: {}", on(c.subtitles())),
+                format!("{}: {}", t("Hlasitost hudby", "Music volume"), c.music_volume()),
+                format!("{}: {}", t("Hlasitost zvuku", "Sound volume"), c.fx_volume()),
+                format!("{}: {}", t("Hlasitost řeči", "Speech volume"), c.speech_volume()),
+                format!("{}: {}", t("Titulky", "Subtitles"), on(c.subtitles())),
                 format!(
-                    "Aktivní místa: {}",
+                    "{}: {}",
+                    t("Aktivní místa", "Hotspots"),
                     match s.hotspots {
-                        Hotspots::HoldSpace => "podržet mezerník",
-                        Hotspots::Always => "vždy",
-                        Hotspots::Off => "vyp.",
+                        Hotspots::HoldSpace => t("podržet mezerník", "hold Space"),
+                        Hotspots::Always => t("vždy", "always"),
+                        Hotspots::Off => t("vyp.", "off"),
                     }
                 ),
-                format!("Celá obrazovka: {}", on(s.fullscreen)),
-                format!("Obraz: {}", if s.scaling == Scaling::Sharp { "ostré pixely" } else { "na celou plochu" }),
-                format!("Animace na střed: {}", on(s.center_cutscenes)),
-                format!("Ukládat při změně místnosti: {}", on(s.autosave_rooms)),
-                format!("Inventář: {}", if s.modern_inventory { "moderní (klik = vzít)" } else { "původní" }),
-                format!("Jazyk: {}", if s.language == "cs" { "čeština" } else { "English" }),
-                format!("Velikost textu: {}x", s.text_scale.max(1)),
-                "Nahrát automatickou pozici".to_string(),
-                "Nahrát rychlou pozici (F9)".to_string(),
-                "Zavřít (Esc)".to_string(),
+                format!("{}: {}", t("Celá obrazovka", "Fullscreen"), on(s.fullscreen)),
+                format!("{}: {}", t("Obraz", "Picture"), if s.scaling == Scaling::Sharp { t("ostré pixely", "sharp pixels") } else { t("na celou plochu", "fill window") }),
+                format!("{}: {}", t("Animace na střed", "Centre cut-scenes"), on(s.center_cutscenes)),
+                format!("{}: {}", t("Ukládat při změně místnosti", "Autosave on room change"), on(s.autosave_rooms)),
+                format!("{}: {}", t("Inventář", "Inventory"), if s.modern_inventory { t("moderní (klik = vzít)", "modern (click = take)") } else { t("původní", "original") }),
+                format!("{}: {}", t("Jazyk", "Language"), if s.language == "cs" { "čeština" } else { "English" }),
+                format!("{}: {}x", t("Velikost textu", "Text size"), s.text_scale.max(1)),
+                t("Nahrát automatickou pozici", "Load autosave").to_string(),
+                t("Nahrát rychlou pozici (F9)", "Load quick save (F9)").to_string(),
+                t("Zavřít (Esc)   H = nápověda", "Close (Esc)   H = hint").to_string(),
             ]
             .into_iter()
             .map(|t| crate::reader::to_cp1250(&t))
@@ -665,7 +668,7 @@ impl Game {
             s.lut[0] = 0;
             s.lut[1] = 0xffe0;
             s.lut[2] = 0xffff;
-            let title = text_render::layout(&crate::reader::to_cp1250("Nastavení (F1)"), 60);
+            let title = text_render::layout(&g.ui("Nastavení (F1)", "Settings (F1)"), 60);
             text_render::draw(&mut s, &font, &title, x0 + 16, y0 + 12, 1);
             for (i, r) in rows.iter().enumerate() {
                 let l = text_render::layout(r, 60);
@@ -734,13 +737,17 @@ impl Game {
                     let data = self.io.borrow().files.get(path).cloned();
                     match data.map(|d| self.load(&d)) {
                         Some(Ok(())) => {
-                            self.toast(&crate::reader::to_cp1250("Pozice nahrána"));
+                            let m = self.ui("Pozice nahrána", "Game loaded");
+                            self.toast(&m);
                             self.redraw = true;
                             self.clear_input();
                             self.reset_base();
                             return;
                         }
-                        _ => self.toast(&crate::reader::to_cp1250("Ta pozice zatím neexistuje")),
+                        _ => {
+                            let m = self.ui("Ta pozice zatím neexistuje", "No such save yet");
+                            self.toast(&m);
+                        }
                     }
                 }
                 if i == 14 {

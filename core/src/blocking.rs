@@ -27,6 +27,11 @@ impl Game {
         self.translation().and_then(|l| l.texts.get(&i).cloned()).or_else(|| self.a.texts.get(i).cloned()).unwrap_or_default()
     }
 
+    /// Port UI text in the selected language (Czech, or English for any translation).
+    pub(crate) fn ui(&self, cs: &str, en: &str) -> Vec<u8> {
+        crate::reader::to_cp1250(if self.io.borrow().settings.language == "cs" { cs } else { en })
+    }
+
     pub(crate) fn item_name(&mut self, i: usize) -> Option<Vec<u8>> {
         self.translation().and_then(|l| l.items.get(&i).cloned()).or_else(|| self.a.items.get(i).cloned())
     }
