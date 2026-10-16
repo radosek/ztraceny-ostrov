@@ -385,6 +385,9 @@ impl Game {
             self.scr.back[VIEW_H * W..].copy_from_slice(&panel);
         }
         self.scr.set_palette(saved_palette);
+        // The film covered the view; put the room back now, before the script continues
+        // (a following delta-only Partial anim is authored against the room, not the film).
+        self.redraw_chars(true);
         self.redraw = true;
         self.clear_input();
         self.reset_base();
@@ -415,6 +418,7 @@ impl Game {
         }
         self.tip_hide(false);
         self.scr.back[VIEW_H * W..].copy_from_slice(&panel);
+        self.redraw_chars(true);
         self.redraw = true;
         self.clear_input();
         self.reset_base();
