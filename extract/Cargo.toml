@@ -9,3 +9,4 @@ publish.workspace = true
 ostrov-core = { path = "../core" }
 anyhow = "1"
 png = "0.17"
+hound = "3"
