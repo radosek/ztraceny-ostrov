@@ -76,43 +76,53 @@ impl Default for Character {
     }
 }
 
-const TAN20: f64 = 0.363_970_234_266_202_4;
-const TAN10: f64 = 0.176_326_980_708_464_97;
-
-/// Straight-line test of TryDirect (angle from vertical ≤ 20°, from horizontal ≤ 10°, axis-aligned,
-/// or both deltas under 6 px).
-fn is_straight(dx: i32, dy: i32) -> bool {
-    if dx == 0 || dy == 0 || (dx.abs() < 6 && dy.abs() < 6) {
-        return true;
-    }
-    let from_vertical = (dx.abs() as f64 / dy.abs() as f64).atan().to_degrees();
-    from_vertical <= 20.0 || 90.0 - from_vertical <= 10.0
+fn straight(dx: i32, dy: i32) -> bool {
+    dx == 0
+        || dy == 0
+        || (dx as f64 / dy as f64).atan().abs() <= 0.3490658503988659
+        || (dy as f64 / dx as f64).atan().abs() <= 0.17453292519943295
+        || (dx.abs() <= 5 && dy.abs() <= 5)
 }
 
-fn walkable(walk: &[(i32, i32)], a: (i32, i32), b: (i32, i32)) -> bool {
-    inside(walk, a.0, a.1) && inside(walk, b.0, b.1) && segment_inside(walk, a.0, a.1, b.0, b.1)
-}
-
-/// The two-leg plan TryDirect uses when the line is too oblique: (corner, ok).
-fn dog_leg(walk: &[(i32, i32)], s: (i32, i32), d: (i32, i32), force: bool) -> Option<(i32, i32)> {
+fn corners(s: (i32, i32), d: (i32, i32)) -> ((i32, i32), (i32, i32)) {
     let (dx, dy) = (d.0 - s.0, d.1 - s.1);
-    let ox = dx.signum() * dround(dy.abs() as f64 * TAN20);
-    let oy = dy.signum() * dround(dx.abs() as f64 * TAN10);
-    let a = (d.0 - ox, s.1 + oy);
-    if walkable(walk, s, a) && walkable(walk, a, d) {
-        return Some(a);
+    let t20 = 20f64.to_radians();
+    let t10 = 10f64.to_radians();
+    let ox = dx.signum() * dround((t20.sin() / t20.cos() * dy as f64).abs());
+    let oy = dy.signum() * dround((t10.sin() / t10.cos() * dx as f64).abs());
+    ((d.0 - ox, s.1 + oy), (s.0 + ox, d.1 - oy))
+}
+
+/// The corner TryDirect would walk via, or None when it fails.
+enum Plan {
+    Straight,
+    Corner((i32, i32)),
+    Fail,
+}
+
+fn plan(walk: &[(i32, i32)], s: (i32, i32), d: (i32, i32), force: bool) -> Plan {
+    let (dx, dy) = (d.0 - s.0, d.1 - s.1);
+    let both_in = inside(walk, d.0, d.1) && inside(walk, s.0, s.1);
+    if straight(dx, dy) {
+        if both_in && !segment_inside(walk, s.0, s.1, d.0, d.1) && !force {
+            return Plan::Fail;
+        }
+        return Plan::Straight;
     }
-    if force {
-        return Some(a);
+    let (a, b) = corners(s, d);
+    let seg = |p: (i32, i32), q: (i32, i32)| segment_inside(walk, p.0, p.1, q.0, q.1);
+    if !both_in || (seg(s, a) && seg(a, d)) || force {
+        Plan::Corner(a)
+    } else if seg(s, b) && seg(b, d) {
+        Plan::Corner(b)
+    } else {
+        Plan::Fail
     }
-    let b = (s.0 + ox, d.1 - oy);
-    (walkable(walk, s, b) && walkable(walk, b, d)).then_some(b)
 }
 
 /// 0x456648: would TryDirect succeed, without side effects.
 pub fn can_reach(walk: &[(i32, i32)], s: (i32, i32), d: (i32, i32)) -> bool {
-    let (dx, dy) = (d.0 - s.0, d.1 - s.1);
-    if is_straight(dx, dy) { walkable(walk, s, d) } else { dog_leg(walk, s, d, false).is_some() }
+    s == d || !matches!(plan(walk, s, d, false), Plan::Fail)
 }
 
 impl Character {
@@ -192,23 +202,21 @@ impl Character {
         self.moving = true;
     }
 
-    /// TryDirect 0x457c64.
-    fn try_direct(&mut self, walk: &[(i32, i32)], d: (i32, i32), force: bool) -> bool {
-        let s = self.pos();
-        let (dx, dy) = (d.0 - s.0, d.1 - s.1);
-        if is_straight(dx, dy) {
-            if force || walkable(walk, s, d) {
-                self.start_segment(d, None);
-                return true;
-            }
-            return false;
+    /// TryDirect 0x457c64 from (x0, y0).
+    fn try_direct(&mut self, walk: &[(i32, i32)], s: (i32, i32), d: (i32, i32), force: bool) -> bool {
+        if d == s {
+            return true;
         }
-        match dog_leg(walk, s, d, force) {
-            Some(c) => {
+        match plan(walk, s, d, force) {
+            Plan::Fail => false,
+            Plan::Straight => {
+                self.start_segment(d, None);
+                true
+            }
+            Plan::Corner(c) => {
                 self.start_segment(c, Some(d));
                 true
             }
-            None => false,
         }
     }
 
@@ -222,16 +230,17 @@ impl Character {
         self.dest = (x, y);
         self.via_waypoint = false;
         let walk = &room.walk.points;
-        while !self.try_direct(walk, self.dest, false) {
-            match self.pick_waypoint(room) {
+        let s = self.pos();
+        while !self.try_direct(walk, s, self.dest, false) {
+            match self.pick_waypoint(room, s) {
                 None => {
-                    self.try_direct(walk, self.dest, true);
+                    self.try_direct(walk, s, self.dest, true);
                     return;
                 }
                 Some(i) => {
                     self.tried[i] = true;
                     self.via_waypoint = true;
-                    if self.try_direct(walk, room.waypoints[i], false) {
+                    if self.try_direct(walk, s, room.waypoints[i], false) {
                         self.visited[i] = true;
                         return;
                     }
@@ -241,29 +250,32 @@ impl Character {
     }
 
     /// 0x4579c0.
-    fn pick_waypoint(&self, room: &Room) -> Option<usize> {
-        let s = self.pos();
+    fn pick_waypoint(&self, room: &Room, s: (i32, i32)) -> Option<usize> {
         let d = self.dest;
         let direct = angle(s.0, s.1, d.0, d.1);
-        let mut best: Option<(i32, usize)> = None;
+        let mut best = 1_000_000.0f64;
+        let mut res = None;
         for (i, &w) in room.waypoints.iter().enumerate().take(20) {
             if self.visited[i] || self.tried[i] || w.0 == s.0 || w.1 == s.1 || w.0 == d.0 || w.1 == d.1 {
                 continue;
             }
-            let dist = |a: (i32, i32), b: (i32, i32)| dround((((a.0 - b.0).pow(2) + (a.1 - b.1).pow(2)) as f64).sqrt());
-            let mut diff = (angle(s.0, s.1, w.0, w.1) - direct).abs();
-            if diff > 180 {
-                diff = 360 - diff;
-            }
-            let mut cost = dist(s, w) + dist(w, d) + diff / 2;
+            let d1 = (((s.0 - w.0).pow(2) + (s.1 - w.1).pow(2)) as f64).sqrt();
+            let d2 = (((d.0 - w.0).pow(2) + (d.1 - w.1).pow(2)) as f64).sqrt();
+            let mut cost = d1 + d2;
             if can_reach(&room.walk.points, w, d) {
-                cost -= 50;
+                cost -= 50.0;
             }
-            if best.is_none_or(|(c, _)| cost < c) {
-                best = Some((cost, i));
+            let mut ad = (angle(s.0, s.1, w.0, w.1) - direct).abs();
+            if ad > 180 {
+                ad = 360 - ad;
+            }
+            cost += (ad / 2) as f64;
+            if cost < best {
+                best = cost;
+                res = Some(i);
             }
         }
-        best.map(|(_, i)| i)
+        res
     }
 
     /// Goto op (0x457040).
@@ -301,13 +313,13 @@ impl Character {
         self.cycle = (self.cycle + 1) % 6;
         self.just_stopped = self.just_stopped.saturating_sub(1);
         if self.target_dir != self.dir {
-            let diff = (self.target_dir - self.dir).rem_euclid(8);
-            if diff == 1 || diff == 7 {
+            let d = self.target_dir - self.dir;
+            if d.abs() == 1 {
                 self.dir = self.target_dir;
-            } else if diff <= 4 {
-                self.dir = (self.dir + 1).rem_euclid(8);
+            } else if (d + 8) % 8 > (self.dir - self.target_dir + 8) % 8 {
+                self.dir = (self.dir + 7) % 8;
             } else {
-                self.dir = (self.dir - 1).rem_euclid(8);
+                self.dir = (self.dir + 1) % 8;
             }
             self.walk_frame = -1;
             if self.dir == self.target_dir && self.pos() == self.seg_end {
@@ -323,10 +335,10 @@ impl Character {
             let (sx, sy) = self.seg_start;
             let (ex, ey) = self.seg_end;
             if (ex - sx).abs() > (ey - sy).abs() {
-                self.x = advance(self.x, ex, step, self.via_waypoint);
+                self.x = advance(self.x, ex, if ex < sx { -step } else { step }, self.via_waypoint);
                 self.y = sy + (self.x - sx).abs() * (ey - sy) / (ex - sx).abs();
             } else {
-                self.y = advance(self.y, ey, step, self.via_waypoint);
+                self.y = advance(self.y, ey, if sy > ey { -step } else { step }, self.via_waypoint);
                 let d = (ey - sy).abs();
                 self.x = if d == 0 { sx } else { sx + (self.y - sy).abs() * (ex - sx) / d };
             }
@@ -400,12 +412,14 @@ impl Character {
     }
 }
 
+/// Step `v` by signed `step` toward `to`; overshoot snaps to `to`, or with the waypoint tolerance
+/// steps back again.
 fn advance(v: i32, to: i32, step: i32, tolerant: bool) -> i32 {
-    if v < to {
-        let n = v + step;
-        if n > to && !tolerant { to } else if n > to { v - step.min(n - to) } else { n }
-    } else {
-        let n = v - step;
-        if n < to && !tolerant { to } else if n < to { v + step.min(to - n) } else { n }
+    let n = v + step;
+    let over = if step >= 0 { n > to } else { n < to };
+    match (over, tolerant) {
+        (false, _) => n,
+        (true, false) => to,
+        (true, true) => n - step,
     }
 }

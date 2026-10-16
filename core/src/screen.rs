@@ -117,33 +117,85 @@ impl Screen {
         self.back.copy_from_slice(&self.bg);
     }
 
-    /// Character sprite (0x44fe5c → 0x44fcac): scaled by 1/`scale`, nearest sample, optional
-    /// mirror, drawn only where `mask <= depth`.
-    pub fn sprite(&mut self, img: &Image, x: i32, y: i32, scale: f64, mirror: bool, depth: u8) {
-        let dw = dround(img.width as f64 / scale).max(0);
-        let dh = dround(img.height as f64 / scale).max(0);
-        for oy in 0..dh {
-            let py = y + oy;
-            if py < 0 || py >= VIEW_H as i32 {
+    /// Character sprite 0x44fe5c → 0x44fcac: Bresenham decimation by 1/`scale` (never upscales),
+    /// source mirrored first, pixel drawn where `depth >= mask`.
+    pub fn sprite(&mut self, img: &Image, x: i32, y: i32, scale: f64, flip: bool, depth: u8, use_trans: bool) {
+        let (w, h) = (img.width as i32, img.height as i32);
+        let wd = dround(w as f64 / scale).min(w);
+        let hd = dround(h as f64 / scale).min(h);
+        if wd <= 0 || hd <= 0 {
+            return;
+        }
+        let key = if use_trans { img.transparent } else { 0xff };
+        let mut ey = 2 * hd - h;
+        let mut dy = y;
+        for sy in 0..h {
+            if ey < 0 {
+                ey += 2 * hd;
                 continue;
             }
-            let sy = ((oy as f64 * scale) as i32).min(img.height as i32 - 1);
-            for ox in 0..dw {
-                let px = x + ox;
-                if px < 0 || px >= W as i32 {
-                    continue;
+            ey += 2 * (hd - h);
+            if (0..H as i32).contains(&dy) {
+                let mut ex = 2 * wd - w;
+                let mut dx = x;
+                for sx in 0..w {
+                    if ex < 0 {
+                        ex += 2 * wd;
+                        continue;
+                    }
+                    ex += 2 * (wd - w);
+                    let sx = if flip { w - 1 - sx } else { sx };
+                    let p = img.pixels[(sy * w + sx) as usize];
+                    if (0..W as i32).contains(&dx) {
+                        let o = dy as usize * W + dx as usize;
+                        if depth >= self.mask[o] && p != key {
+                            self.back[o] = self.lut[p as usize];
+                        }
+                    }
+                    dx += 1;
                 }
-                let mut sx = ((ox as f64 * scale) as i32).min(img.width as i32 - 1);
-                if mirror {
-                    sx = img.width as i32 - 1 - sx;
-                }
-                let p = img.pixels[(sy * img.width as i32 + sx) as usize];
-                let o = py as usize * W + px as usize;
-                if p == img.transparent || self.mask[o] > depth {
-                    continue;
-                }
-                self.back[o] = self.lut[p as usize];
             }
+            dy += 1;
         }
     }
+
+    /// Copy a rectangle out of the back buffer (save-under).
+    pub fn save_rect(&self, x: i32, y: i32, w: i32, h: i32) -> SavedRect {
+        let (x0, y0) = (x.max(0), y.max(0));
+        let (x1, y1) = ((x + w).min(W as i32), (y + h).min(H as i32));
+        let mut px = Vec::new();
+        for yy in y0..y1 {
+            if x0 < x1 {
+                px.extend_from_slice(&self.back[yy as usize * W + x0 as usize..yy as usize * W + x1 as usize]);
+            }
+        }
+        SavedRect { x: x0, y: y0, w: (x1 - x0).max(0), h: (y1 - y0).max(0), px }
+    }
+
+    pub fn put_rect(&mut self, r: &SavedRect) {
+        for row in 0..r.h {
+            let o = (r.y + row) as usize * W + r.x as usize;
+            let s = (row * r.w) as usize;
+            self.back[o..o + r.w as usize].copy_from_slice(&r.px[s..s + r.w as usize]);
+        }
+    }
+
+    /// 0x44ee68: background rows 0..419 → screen.
+    pub fn bg_to_back(&mut self) {
+        self.back[..VIEW_H * W].copy_from_slice(&self.bg[..VIEW_H * W]);
+    }
+
+    /// 0x44ef8c (rows 0..479) / 0x44f008 (rows 0..419).
+    pub fn clear(&mut self, rows: usize) {
+        self.back[..rows * W].fill(0);
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SavedRect {
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+    px: Vec<u16>,
 }

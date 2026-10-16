@@ -63,3 +63,7 @@ impl<'a> Reader<'a> {
 pub fn cp1250(b: &[u8]) -> String {
     encoding_rs::WINDOWS_1250.decode_without_bom_handling(b).0.into_owned()
 }
+
+pub fn to_cp1250(s: &str) -> Vec<u8> {
+    encoding_rs::WINDOWS_1250.encode(s).0.into_owned()
+}

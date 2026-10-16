@@ -9,3 +9,8 @@ publish.workspace = true
 thiserror = "2"
 encoding_rs = "0.8"
 gif = "0.13"
+oxideav-cinepak = "0.0.3"
+riff = "2"
+
+[dev-dependencies]
+png = "0.17"

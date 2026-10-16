@@ -5,21 +5,29 @@ pub fn dround(v: f64) -> i32 {
     v.round_ties_even() as i32
 }
 
-/// `CreatePolygonRgn(..., WINDING)` + `PtInRegion`, after the bbox prefilter (0x450c08).
-/// GDI fills pixel centres with a top-left rule, which a non-zero winding test on
-/// (x+0.5, y+0.5) matches for integer polygons.
+fn bbox(points: &[(i32, i32)], x: i32, y: i32) -> bool {
+    let (mut l, mut t, mut r, mut b) = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
+    for &(px, py) in points {
+        l = l.min(px);
+        t = t.min(py);
+        r = r.max(px);
+        b = b.max(py);
+    }
+    l <= x && x < r && t <= y && y < b
+}
+
+/// 0x450ba4: bbox prefilter, then `CreatePolygonRgn(WINDING)` + `PtInRegion`, modelled as a
+/// non-zero winding test at the pixel centre (exact for axis-aligned edges).
 pub fn inside(points: &[(i32, i32)], x: i32, y: i32) -> bool {
-    if points.len() < 3 {
+    if points.len() < 3 || !bbox(points, x, y) {
         return false;
     }
     let (px, py) = (x as f64 + 0.5, y as f64 + 0.5);
     let mut wn = 0;
     for i in 0..points.len() {
         let (x0, y0) = (points[i].0 as f64, points[i].1 as f64);
-        let (x1, y1) = {
-            let p = points[(i + 1) % points.len()];
-            (p.0 as f64, p.1 as f64)
-        };
+        let p = points[(i + 1) % points.len()];
+        let (x1, y1) = (p.0 as f64, p.1 as f64);
         let cross = (x1 - x0) * (py - y0) - (px - x0) * (y1 - y0);
         if y0 <= py {
             if y1 > py && cross > 0.0 {
@@ -32,13 +40,12 @@ pub fn inside(points: &[(i32, i32)], x: i32, y: i32) -> bool {
     wn != 0
 }
 
-/// 0x450c48: ten samples along the segment must all be inside.
+/// 0x450c48: endpoints bbox-tested, then samples k = 1..=10 (start itself is not polygon-tested).
 pub fn segment_inside(points: &[(i32, i32)], x0: i32, y0: i32, x1: i32, y1: i32) -> bool {
-    (0..=10).all(|i| {
-        let x = x0 + (x1 - x0) * i / 10;
-        let y = y0 + (y1 - y0) * i / 10;
-        inside(points, x, y)
-    })
+    if points.len() < 3 || !bbox(points, x0, y0) || !bbox(points, x1, y1) {
+        return false;
+    }
+    (1..=10).all(|k| inside(points, x0 + (x1 - x0) * k / 10, y0 + (y1 - y0) * k / 10))
 }
 
 /// Degrees 0..360, 0 = east, 90 = up (screen y grows down).

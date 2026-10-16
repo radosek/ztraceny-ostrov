@@ -48,6 +48,7 @@ pub struct Assets {
     pub npc_anims: Vec<(u16, u16)>,
     pub npc_pos: Vec<(u16, u16)>,
     pub font: Vec<u8>,
+    pub videos: HashMap<&'static str, Vec<u8>>,
     sounds: std::cell::RefCell<HashMap<(Arc8, i32), Arc<[i16]>>>,
     lists: std::cell::RefCell<HashMap<i32, Rc<Vec<Image>>>>,
 }
@@ -61,6 +62,7 @@ impl Assets {
             packs.push(Pack::new(d).map_err(|e| AssetError::Archive(name, e))?);
         }
         let packs: [Pack; 8] = packs.try_into().ok().unwrap();
+        let videos = ["Logo.avi", "Titulky.avi"].into_iter().filter_map(|n| Some((n, read(n)?))).collect();
         let data = &packs[Arc8::Data as usize];
         Ok(Self {
             items: text::string_list(data.entry(0x20))?,
@@ -72,6 +74,7 @@ impl Assets {
             npc_anims: world::pairs(data.entry(0x26))?,
             npc_pos: world::pairs(data.entry(0x27))?,
             font: data.entry(0x15).to_vec(),
+            videos,
             packs,
             sounds: Default::default(),
             lists: Default::default(),
