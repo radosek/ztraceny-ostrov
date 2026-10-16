@@ -46,11 +46,13 @@ pub struct Settings {
     pub text_scale: u8,
     /// Interpolate walking between the 70 ms game ticks.
     pub smooth_motion: bool,
+    /// Blurred picture in the side bars when the window is wider than 4:3.
+    pub widescreen: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { hotspots: Hotspots::HoldSpace, fullscreen: false, scaling: Scaling::Fill, center_cutscenes: true, autosave_rooms: true, modern_inventory: true, language: "cs".into(), text_scale: 1, smooth_motion: true }
+        Self { hotspots: Hotspots::HoldSpace, fullscreen: false, scaling: Scaling::Fill, center_cutscenes: true, autosave_rooms: true, modern_inventory: true, language: "cs".into(), text_scale: 1, smooth_motion: true, widescreen: true }
     }
 }
 
@@ -85,6 +87,7 @@ impl Settings {
                 "modern_inventory" => s.modern_inventory = on,
                 "language" => s.language = v.to_string(),
                 "smooth_motion" => s.smooth_motion = on,
+                "widescreen" => s.widescreen = on,
                 "text_scale" => s.text_scale = v.parse().unwrap_or(1).clamp(1, 2),
                 _ => {}
             }
@@ -94,7 +97,7 @@ impl Settings {
 
     pub fn to_text(&self) -> String {
         format!(
-            "hotspots = {}\nfullscreen = {}\nscaling = {}\ncenter_cutscenes = {}\nautosave_rooms = {}\nmodern_inventory = {}\nlanguage = {}\ntext_scale = {}\nsmooth_motion = {}\n",
+            "hotspots = {}\nfullscreen = {}\nscaling = {}\ncenter_cutscenes = {}\nautosave_rooms = {}\nmodern_inventory = {}\nlanguage = {}\ntext_scale = {}\nsmooth_motion = {}\nwidescreen = {}\n",
             match self.hotspots {
                 Hotspots::HoldSpace => "hold-space",
                 Hotspots::Always => "always",
@@ -112,7 +115,8 @@ impl Settings {
             self.modern_inventory,
             self.language,
             self.text_scale,
-            self.smooth_motion
+            self.smooth_motion,
+            self.widescreen
         )
     }
 }
@@ -123,7 +127,7 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let s = Settings { hotspots: Hotspots::Always, fullscreen: true, scaling: Scaling::Sharp, center_cutscenes: true, autosave_rooms: false, modern_inventory: false, language: "en".into(), text_scale: 2, smooth_motion: false };
+        let s = Settings { hotspots: Hotspots::Always, fullscreen: true, scaling: Scaling::Sharp, center_cutscenes: true, autosave_rooms: false, modern_inventory: false, language: "en".into(), text_scale: 2, smooth_motion: false, widescreen: false };
         assert_eq!(Settings::parse(&s.to_text()), s);
     }
 }

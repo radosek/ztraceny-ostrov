@@ -118,7 +118,8 @@ impl Game {
     }
 
     /// Hover 0x45b7a0: cursor id and label.
-    fn hover(&mut self, x: i32, y: i32) -> (i32, Option<Vec<u8>>) {
+    /// Hover 0x45b7a0: (cursor, label, hovered region id or -1).
+    fn hover_region(&mut self, x: i32, y: i32) -> (i32, Option<Vec<u8>>, i32) {
         if y >= VIEW_H as i32 {
             let id = if in_inventory_button(x, y) {
                 10
@@ -127,17 +128,27 @@ impl Game {
             } else {
                 -1
             };
-            return (id, None);
+            return (id, None, -1);
         }
-        if let Some(ri) = self.region_at(x, y) {
-            let (label, cursor) = {
-                let r = &self.cur().regions[ri];
-                (r.label, r.cursor)
-            };
-            let label = (label > 0).then(|| self.label_name(label as usize)).flatten();
-            return (cursor as i32, label);
-        }
-        if inside(&self.cur().walk.points, x, y) { (2, None) } else { (5, None) }
+        let walk = |g: &Self| if inside(&g.cur().walk.points, x, y + 2) { 2 } else { 5 };
+        let (region, cursor, label) = if let Some(ri) = self.region_at(x, y) {
+            let r = &self.cur().regions[ri];
+            (ri as i32, r.cursor as i32, r.label)
+        } else if let Some(cr) = self.char_region_at(x, y) {
+            let room = self.room_index(CHAR_ROOM).unwrap_or(0);
+            let r = self.rooms[room].regions.get((cr - 0x800) as usize);
+            (cr, r.map_or(0, |r| r.cursor as i32), r.map_or(0, |r| r.label))
+        } else {
+            return (walk(self), None, -1);
+        };
+        let cursor = if cursor > 0 { cursor } else { walk(self) };
+        let label = (label > 0).then(|| self.label_name(label as usize)).flatten();
+        (cursor, label, region)
+    }
+
+    fn hover(&mut self, x: i32, y: i32) -> (i32, Option<Vec<u8>>) {
+        let (c, l, _) = self.hover_region(x, y);
+        (c, l)
     }
 
     /// Remember the state before a player action (for F12 reports).
@@ -154,8 +165,8 @@ impl Game {
     }
 
     /// F12: write the recent saves, the action log and the screen to `Bugs/<time>/`.
-    fn bug_report(&mut self) {
-        let dir = format!("Bugs/{}", self.clock.now());
+    pub(crate) fn bug_report(&mut self) {
+        let dir = format!("Bugs/{}-{:x}", self.clock.now(), self.cur_id());
         let mut log = String::new();
         let recent: Vec<_> = self.recent.iter().cloned().collect();
         let mut io = self.io.borrow_mut();
@@ -461,12 +472,16 @@ impl Game {
     /// Hover 0x462dd8: cursor shape, label text and position, panel hover id.
     fn update_hover(&mut self) -> i32 {
         let (mx, my) = (self.input.mouse_x, self.input.mouse_y);
-        let (cursor, label) = self.hover(mx, my);
+        let (cursor, label, region) = self.hover_region(mx, my);
         self.cursor.base = if (1..=7).contains(&cursor) { cursor } else { 0 };
         self.cursor.item = (self.held >= 0).then_some(self.held);
-        match label {
-            Some(t) => self.tip_set(false, &t, mx + 10, my + 10),
-            None => self.tip_set(false, b"", 0, 0),
+        // 0x462f59: the label is placed when the hovered region changes and then stays put.
+        if region != self.hover_region_id || label.is_none() {
+            self.hover_region_id = region;
+            match label {
+                Some(t) => self.tip_set(false, &t, mx + 10, my + 10),
+                None => self.tip_set(false, b"", 0, 0),
+            }
         }
         if (10..=11).contains(&cursor) { cursor } else { -1 }
     }
@@ -655,10 +670,6 @@ impl Game {
                     }
                 }
                 panel_hover = -2;
-            } else if self.input.key_down && self.input.key == 0x7b {
-                self.bug_report();
-                let m = self.ui("Hlášení chyby uloženo (složka Bugs)", "Bug report saved (Bugs folder)");
-                self.toast(&m);
             } else if self.input.key_down && self.input.key == b'H' as u16 {
                 self.hide_overlays();
                 self.show_hint().await;

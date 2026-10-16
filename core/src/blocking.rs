@@ -231,20 +231,20 @@ impl Game {
         self.reset_base();
     }
 
-    fn anim_cycle_done(&self, slot: usize) -> bool {
-        self.anims[slot].as_ref().is_none_or(|a| a.header.frames <= 1 || a.pos.frame == 0)
-    }
 
     /// 0x45f81c: mode 0 = wait `ticks` (skippable), 1/2 = until back anim 1/2 completes a cycle.
     pub async fn delay(&mut self, ticks: i32, mode: i32) {
         self.ctx = "delay";
         self.prep();
-        if mode > 0 && self.anim_cycle_done(mode as usize - 1) {
+        if mode > 0 && self.anim_at_rest(mode as usize - 1) {
             return;
         }
         self.reset_base();
         let mut count = 0;
         loop {
+            if mode == 0 && count >= ticks {
+                break;
+            }
             self.music_tick();
             self.frame();
             self.present();
@@ -253,14 +253,8 @@ impl Game {
                 break;
             }
             count += 1;
-            if mode == 0 && count >= ticks {
+            if mode > 0 && self.anim_at_rest(mode as usize - 1) {
                 break;
-            }
-            if mode > 0 {
-                let slot = mode as usize - 1;
-                if self.anims[slot].as_ref().is_none_or(|a| a.pos.frame <= 1) {
-                    break;
-                }
             }
         }
         self.clear_input();
@@ -336,9 +330,7 @@ impl Game {
             eprintln!("partial {idx} mode {mode} fx {fx} room {:#x} t={}", self.cur_id(), self.clock.now());
         }
         let delay = if delay == 0 { DEFAULT_FRAME_MS } else { delay as u64 };
-        if mode == 2 {
-            self.delay(0, 1).await;
-        }
+
         self.cursor_hide();
         self.tip_hide(false);
         let a = self.a.clone();
@@ -371,13 +363,24 @@ impl Game {
         self.reset_base();
         let mut skipping = false;
         let kept: Vec<usize> = self.order().into_iter().filter(|&c| keep(self, c)).collect();
-        for _ in 0..h.frames {
+        // Mode 2 (0x45aef4): hold the anim until back anim 1 is back at its rest frame.
+        let mut hold = mode == 2 && self.cur().anim1 > 0;
+        let mut done = 0;
+        while done < h.frames {
             self.music_tick();
             for &c in kept.iter().rev() {
                 self.hide_char(c);
             }
-            let mut sink = self.sink(true, mode == 10, 0);
-            let _ = flc::decode_frame(d, &mut pos, false, &mut sink);
+            if hold && self.anim_at_rest(0) {
+                hold = false;
+            }
+            if !hold {
+                let mut sink = self.sink(true, mode == 10, 0);
+                let _ = flc::decode_frame(d, &mut pos, false, &mut sink);
+                done += 1;
+            }
+            // 0x45b07e: background anims keep running during the anim.
+            self.back_anims();
             for &c in &kept {
                 self.show_char(c);
             }

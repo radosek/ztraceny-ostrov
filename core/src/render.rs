@@ -167,9 +167,13 @@ impl Game {
             && let Some(img) = self.image(Arc8::Backgnd, bg, kind)
         {
             self.scr.blit(Target::Bg, &img, 0, 0, false, VIEW_H);
-        }
-        for slot in 0..2 {
-            self.restamp_anim(slot);
+            // 0x45b664: both back anims are rewound (not drawn).
+            for slot in 0..2 {
+                if let Some(mut a) = self.anims[slot].clone() {
+                    a.pos = self.anim_rewound(&a);
+                    self.anims[slot] = Some(a);
+                }
+            }
         }
         for ri in (0..self.cur().regions.len()).rev() {
             let r = &self.cur().regions[ri];
@@ -195,29 +199,11 @@ impl Game {
         let a = self.a.clone();
         let d = a.raw(s.archive, s.index);
         let mut sink = self.sink(back, bg, 0);
-        if s.pos.frame >= s.header.frames as u32 {
-            // Past the last frame: a looping file has a ring frame that turns the last image
-            // back into the first; play it, then continue from frame 1 (0x44f744 / 0x44f4b0).
-            if s.header.loop_frame != 0 {
-                let _ = flc::decode_frame(d, &mut s.pos, false, &mut sink);
-                s.pos = Pos { offset: s.header.loop_frame, frame: 1 };
-                return;
-            }
-            s.pos = s.header.start();
-        }
         let _ = flc::decode_frame(d, &mut s.pos, false, &mut sink);
-    }
-
-    /// Re-decode from the start up to the current frame onto the background (0x44fc10).
-    fn restamp_anim(&mut self, slot: usize) {
-        if self.auto && !self.auto_draw {
-            return;
-        }
-        let Some(s) = self.anims[slot].clone() else { return };
-        let mut t = AnimSlot { pos: s.header.start(), ..s.clone() };
-        let n = if s.pos.frame == 0 { s.header.frames as u32 } else { s.pos.frame };
-        for _ in 0..n {
-            self.slot_step(&mut t, false, true);
+        // 0x44f7ea: after the last frame (its trailing ring chunk included) seek to oframe2;
+        // the counter restarts at 1 for 0xAF12 files and at 0 for 0x00FF ones.
+        if s.pos.frame >= s.header.frames as u32 {
+            s.pos = Pos { offset: if s.header.loop_frame != 0 { s.header.loop_frame } else { s.header.first_frame }, frame: if s.header.delta_only { 0 } else { 1 } };
         }
     }
 
@@ -228,18 +214,44 @@ impl Game {
         if idx == 0 {
             return;
         }
+        // 0x45ba34: open and rewind, nothing is drawn.
         let Some(mut s) = self.slot_open(Arc8::Backgnd, idx.unsigned_abs() as i32) else { return };
-        self.slot_step(&mut s, true, true);
+        s.pos = self.anim_rewound(&s);
         self.anims[slot] = Some(s);
     }
 
-    /// Stamp the current frame of a back anim into the background (ChangeBackAnimX 3/4).
+    /// Rewind 0x44fc10 → 0x44fb54: to frame 0 for 0x00FF files, past frame 0 (counter 1) for
+    /// 0xAF12 ones, without drawing.
+    pub(crate) fn anim_rewound(&self, s: &AnimSlot) -> Pos {
+        if s.header.delta_only {
+            return s.header.start();
+        }
+        let d = self.a.raw(s.archive, s.index);
+        let o = s.header.first_frame;
+        let size = d.get(o..o + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()) as usize);
+        Pos { offset: o + size, frame: 1 }
+    }
+
+    /// 0x44fc40: if mid-cycle, play the rest of the cycle into screen and background.
     pub(crate) fn stamp_anim(&mut self, slot: usize) {
-        self.restamp_anim(slot);
+        let Some(mut s) = self.anims[slot].clone() else { return };
+        if s.pos.frame != 0 && s.header.frames > 1 {
+            for _ in 0..(s.header.frames as u32).saturating_sub(s.pos.frame) {
+                self.slot_step(&mut s, true, true);
+            }
+        }
+        self.anims[slot] = Some(s);
+    }
+
+    /// Delay 0x45f81c end test for a back anim: its cycle is back at the rest frame.
+    pub(crate) fn anim_at_rest(&self, slot: usize) -> bool {
+        self.anims[slot].as_ref().is_none_or(|a| {
+            a.header.frames <= 1 || (a.header.delta_only && a.pos.frame == 0) || (!a.header.delta_only && a.pos.frame == 1)
+        })
     }
 
     /// 0x45e140.
-    fn back_anims(&mut self) {
+    pub(crate) fn back_anims(&mut self) {
         for slot in 0..2 {
             let field = if slot == 0 { self.cur().anim1 } else { self.cur().anim2 };
             let Some(mut s) = self.anims[slot].clone() else { continue };

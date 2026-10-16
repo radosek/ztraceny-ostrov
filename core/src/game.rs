@@ -152,6 +152,8 @@ pub struct Game {
     pub recent: std::collections::VecDeque<(String, Vec<u8>)>,
     /// Character positions at the start of the last tick (smooth motion interpolates from them).
     pub prev_pos: Vec<(i32, i32)>,
+    /// Region under the mouse when the hover label was last placed.
+    pub hover_region_id: i32,
     /// Short message shown on top of the game (quick save etc.) until the given time.
     pub toast: Option<(Vec<u8>, u64)>,
 }
@@ -235,6 +237,7 @@ impl Game {
             hint_mark: None,
             recent: Default::default(),
             prev_pos: vec![(0, 0); 40],
+            hover_region_id: -2,
             toast: None,
         };
         g.apply_volumes();
@@ -285,6 +288,14 @@ impl Game {
         if io.quit || self.auto {
             self.input.key_down = true;
             self.input.key = crate::input::KEY_ESC;
+        }
+        drop(io);
+        // F12 works everywhere, including during animations and speech.
+        if self.input.key_down && self.input.key == 0x7b && !self.auto {
+            self.input.key_down = false;
+            self.bug_report();
+            let m = self.ui("Hlášení chyby uloženo (složka Bugs)", "Bug report saved (Bugs folder)");
+            self.toast(&m);
         }
     }
 
@@ -469,7 +480,8 @@ impl Game {
         self.room = ri;
         self.chars[HERO].room_id = id;
         let new_pal = self.cur().pal;
-        if old_pal != new_pal && !matches!((old_pal, new_pal), (0x0e, 0x12) | (0x12, 0x0e)) && !(0x64f..=0x654).contains(&id)
+        // 0x45aa4b's 0x0e/0x12 exception compares room ids already overwritten: dead code.
+        if old_pal != new_pal && !(0x64f..=0x654).contains(&id)
         {
             self.scr.back[..VIEW_H * W].fill(0);
         }
@@ -689,20 +701,26 @@ impl Game {
             10 | 11 => {
                 let en = op == 10;
                 let cur = is_cur(self, a[1]);
-                if let Some(r) = self.room_mut(a[1]).and_then(|r| r.regions.get_mut(a[0] as usize)) {
-                    r.enabled = en;
-                }
-                if cur {
+                // 0x45cec5 / 0x45cf4b: nothing happens unless the state changes.
+                let changed = match self.room_mut(a[1]).and_then(|r| r.regions.get_mut(a[0] as usize)) {
+                    Some(r) if r.enabled != en => {
+                        r.enabled = en;
+                        true
+                    }
+                    _ => false,
+                };
+                if cur && changed {
                     self.region_changed(a[0] as usize, en);
                 }
             }
             12 => {
                 if region >= 0 && region < 0x800 {
                     let ri = region as usize;
-                    if let Some(r) = self.rooms[self.room].regions.get_mut(ri) {
-                        r.enabled = false;
+                    let was = self.rooms[self.room].regions.get(ri).is_some_and(|r| r.enabled);
+                    if was {
+                        self.rooms[self.room].regions[ri].enabled = false;
+                        self.region_changed(ri, false);
                     }
-                    self.region_changed(ri, false);
                 }
             }
             13 => self.say(a[0]).await,
@@ -737,6 +755,8 @@ impl Game {
                     r.anim1 = a[0] as i16;
                 }
                 if cur {
+                    // 0x45d1a7: RedrawRoom, then load anim 1.
+                    self.redraw_room();
                     self.load_anim(0);
                 }
             }
@@ -747,8 +767,13 @@ impl Game {
                     .room_index(a[4])
                     .and_then(|i| self.rooms[i].regions.get(ri))
                     .map(|r| (r.image, r.image_type, r.x, r.y, r.enabled));
+                // 0x45d1ff: unchanged image and position → nothing.
+                if old.is_some_and(|(oi, _, ox, oy, _)| (oi as i32, ox as i32, oy as i32) == (a[0], a[1], a[2])) {
+                    return;
+                }
                 if let Some(r) = self.room_mut(a[4]).and_then(|r| r.regions.get_mut(ri)) {
                     r.image = a[0] as i16;
+                    r.image_type = 0;
                     r.x = a[1] as i16;
                     r.y = a[2] as i16;
                 }
@@ -798,14 +823,14 @@ impl Game {
             38 => {
                 let cur = is_cur(self, a[1]);
                 if cur {
+                    // 0x45d502: signed `<= 2` delays, 3 stamps anim 1, anything else anim 2.
                     match a[2] {
-                        0..=2 => self.delay(0, a[2]).await,
+                        i32::MIN..=2 => self.delay(0, a[2].max(0)).await,
                         3 => self.stamp_anim(0),
-                        4 => self.stamp_anim(1),
-                        _ => {}
+                        _ => self.stamp_anim(1),
                     }
                 }
-                let second = matches!(a[2], 2 | 4);
+                let second = a[2] == 2 || a[2] > 3;
                 if let Some(r) = self.room_mut(a[1]) {
                     if second {
                         r.anim2 = a[0] as i16;

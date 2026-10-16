@@ -22,6 +22,16 @@ fn vs(@builtin(vertex_index) i: u32) -> V {
 
 @fragment
 fn fs(v: V) -> @location(0) vec4<f32> {
+    if (u.mode == 3u) {
+        // widescreen backdrop: wide box blur of the frame, darkened
+        var acc = vec3(0.0);
+        for (var i = -3; i <= 3; i++) {
+            for (var j = -3; j <= 3; j++) {
+                acc += textureSample(tex, smp, v.uv + vec2(f32(i) * 0.03, f32(j) * 0.03)).rgb;
+            }
+        }
+        return vec4(acc / 49.0 * 0.45, 1.0);
+    }
     var c = textureSample(tex, smp, v.uv).rgb;
     if (u.mode == 2u) {
         // scanline: darken between source rows
@@ -43,7 +53,8 @@ pub struct Filter {
     pipeline: wgpu::RenderPipeline,
     layout: wgpu::BindGroupLayout,
     linear: wgpu::Sampler,
-    uniform: wgpu::Buffer,
+    nearest: wgpu::Sampler,
+    uniform: [wgpu::Buffer; 2],
 }
 
 impl Filter {
@@ -110,45 +121,81 @@ impl Filter {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
-        let uniform = d.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("ostrov_filter"),
-            size: 16,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
+        let nearest = d.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
         });
-        Self { pipeline, layout, linear, uniform }
+        let buf = || {
+            d.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("ostrov_filter"),
+                size: 16,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        };
+        Self { pipeline, layout, linear, nearest, uniform: [buf(), buf()] }
     }
 
-    /// Draw the frame texture into the letterboxed area `clip` with `mode` 1 = smooth, 2 = CRT.
-    pub fn render(&self, enc: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, ctx: &PixelsContext, clip: (u32, u32, u32, u32), mode: u32) {
+    fn pass(
+        &self,
+        enc: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        ctx: &PixelsContext,
+        area: (u32, u32, u32, u32),
+        mode: u32,
+        slot: usize,
+        clear: bool,
+    ) {
         let mut u = [0u8; 16];
         u[..4].copy_from_slice(&mode.to_le_bytes());
-        u[4..8].copy_from_slice(&(clip.3 as f32).to_le_bytes());
-        ctx.queue.write_buffer(&self.uniform, 0, &u);
+        u[4..8].copy_from_slice(&(area.3 as f32).to_le_bytes());
+        ctx.queue.write_buffer(&self.uniform[slot], 0, &u);
         let view = ctx.texture.create_view(&Default::default());
+        let sampler = if mode == 0 { &self.nearest } else { &self.linear };
         let bind = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("ostrov_filter"),
             layout: &self.layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.linear) },
-                wgpu::BindGroupEntry { binding: 2, resource: self.uniform.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
+                wgpu::BindGroupEntry { binding: 2, resource: self.uniform[slot].as_entire_binding() },
             ],
         });
+        let load = if clear { wgpu::LoadOp::Clear(wgpu::Color::BLACK) } else { wgpu::LoadOp::Load };
         let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("ostrov_filter"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: target,
                 resolve_target: None,
                 depth_slice: None,
-                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+                ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
             })],
             ..Default::default()
         });
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &bind, &[]);
-        pass.set_scissor_rect(clip.0, clip.1, clip.2, clip.3);
-        pass.set_viewport(clip.0 as f32, clip.1 as f32, clip.2 as f32, clip.3 as f32, 0.0, 1.0);
+        pass.set_scissor_rect(area.0, area.1, area.2, area.3);
+        pass.set_viewport(area.0 as f32, area.1 as f32, area.2 as f32, area.3 as f32, 0.0, 1.0);
         pass.draw(0..3, 0..1);
+    }
+
+    /// Draw the frame into `clip` with `mode` 0 sharp, 1 smooth, 2 CRT; with `backdrop`, first
+    /// fill the whole `window` with a blurred copy (widescreen side bars).
+    #[allow(clippy::too_many_arguments)]
+    pub fn render(
+        &self,
+        enc: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        ctx: &PixelsContext,
+        clip: (u32, u32, u32, u32),
+        window: (u32, u32),
+        mode: u32,
+        backdrop: bool,
+    ) {
+        if backdrop {
+            self.pass(enc, target, ctx, (0, 0, window.0, window.1), 3, 1, true);
+        }
+        self.pass(enc, target, ctx, clip, mode, 0, !backdrop);
     }
 }

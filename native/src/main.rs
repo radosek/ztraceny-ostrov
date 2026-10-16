@@ -393,21 +393,23 @@ impl ApplicationHandler for Runner {
             }
             WindowEvent::RedrawRequested => {
                 self.step();
-                if let Some(p) = &self.pixels {
+                if let (Some(p), Some(w)) = (&self.pixels, &self.window) {
                     use ostrov_core::settings::Scaling;
                     let mode = match self.scaling {
                         Scaling::Smooth => 1,
                         Scaling::Crt => 2,
                         _ => 0,
                     };
-                    match (&self.filter, mode) {
-                        (Some(f), 1 | 2) => {
+                    let size = w.inner_size();
+                    let backdrop = self.app.io.borrow().settings.widescreen && size.width * 3 > size.height * 4 + 8;
+                    match &self.filter {
+                        Some(f) => {
                             let _ = p.render_with(|enc, target, ctx| {
-                                f.render(enc, target, ctx, ctx.scaling_renderer.clip_rect(), mode);
+                                f.render(enc, target, ctx, ctx.scaling_renderer.clip_rect(), (size.width, size.height), mode, backdrop);
                                 Ok(())
                             });
                         }
-                        _ => {
+                        None => {
                             let _ = p.render();
                         }
                     }

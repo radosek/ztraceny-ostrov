@@ -618,7 +618,7 @@ impl Game {
         use crate::settings::{Hotspots, Scaling};
         let saved = self.scr.back.clone();
         let font = self.a.font.clone();
-        let (x0, y0, w, row) = (110, 20, 420, 22);
+        let (x0, y0, w, row) = (100, 8, 440, 21);
         let labels = |g: &Game| -> Vec<Vec<u8>> {
             let s = &g.io.borrow().settings;
             let c = &g.cfg;
@@ -651,6 +651,8 @@ impl Game {
                     }
                 ),
                 format!("{}: {}", t("Animace na střed", "Centre cut-scenes"), on(s.center_cutscenes)),
+                format!("{}: {}", t("Široký obraz (rozmazané okraje)", "Widescreen side fill"), on(s.widescreen)),
+                format!("{}: {}", t("Plynulý pohyb", "Smooth motion"), on(s.smooth_motion)),
                 format!("{}: {}", t("Ukládat při změně místnosti", "Autosave on room change"), on(s.autosave_rooms)),
                 format!("{}: {}", t("Inventář", "Inventory"), if s.modern_inventory { t("moderní (klik vedle = zavřít)", "modern (click outside = close)") } else { t("původní", "original") }),
                 format!("{}: {}", t("Jazyk", "Language"), if s.language == "cs" { "čeština" } else { "English" }),
@@ -725,10 +727,12 @@ impl Game {
                         5 => s.fullscreen = !s.fullscreen,
                         6 => s.scaling = s.scaling.next(),
                         7 => s.center_cutscenes = !s.center_cutscenes,
-                        8 => s.autosave_rooms = !s.autosave_rooms,
-                        9 => s.modern_inventory = !s.modern_inventory,
-                        10 => s.language = if s.language == "cs" { "en".into() } else { "cs".into() },
-                        11 => s.text_scale = if s.text_scale >= 2 { 1 } else { 2 },
+                        8 => s.widescreen = !s.widescreen,
+                        9 => s.smooth_motion = !s.smooth_motion,
+                        10 => s.autosave_rooms = !s.autosave_rooms,
+                        11 => s.modern_inventory = !s.modern_inventory,
+                        12 => s.language = if s.language == "cs" { "en".into() } else { "cs".into() },
+                        13 => s.text_scale = if s.text_scale >= 2 { 1 } else { 2 },
                         _ => {}
                     }
                     let text = s.to_text().into_bytes();
@@ -737,12 +741,12 @@ impl Game {
                     io.writes.push(("Main.cfg".into(), cfg));
                 }
                 self.apply_volumes();
-                if i == 10 && self.io.borrow().settings.language != "cs" && self.translation().is_none() {
+                if i == 12 && self.io.borrow().settings.language != "cs" && self.translation().is_none() {
                     let code = self.io.borrow().settings.language.clone();
                     self.toast(&crate::reader::to_cp1250(&format!("Chybí soubor {}", crate::lang::file(&code))));
                 }
-                if i == 12 || i == 13 {
-                    let path = if i == 12 { crate::app::AUTOSAVE } else { crate::session::QUICKSAVE };
+                if i == 14 || i == 15 {
+                    let path = if i == 14 { crate::app::AUTOSAVE } else { crate::session::QUICKSAVE };
                     let data = self.io.borrow().files.get(path).cloned();
                     match data.map(|d| self.load(&d)) {
                         Some(Ok(())) => {
@@ -759,7 +763,7 @@ impl Game {
                         }
                     }
                 }
-                if i == 14 {
+                if i == 16 {
                     break;
                 }
             }
