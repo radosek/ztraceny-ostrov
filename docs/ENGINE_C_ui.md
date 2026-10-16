@@ -10,15 +10,14 @@ mouse x/y 0x4690c8/0x4690cc, [0x469894]→0x4690d8 / [0x469840]→0x4690dc "full
 0x444738 = timeGetTime thunk; 0x441d40 = Application.ProcessMessages; 0x44f084 = Sleep/yield.
 
 ## C1. PlayPartial / PlayPartialX — 0x45ac50(world, partialIdx, delayMs, mode, fx)
-Script mapping: PlayPartial a1 a2 a3 → (a1, delay=a2, mode=0, fx=a3); PlayPartialX a1 a2 a3 a4 → (a1, a2, mode=a3, fx=a4).
+Script mapping: PlayPartial a1 a2 a3 → (a1, delay=a2, mode=0, fx=a3); PlayPartialX a1 a2 a3 a4 → (a1, delay=a2, fx=a3, mode=a4) (corrected; earlier notes had fx/mode swapped).
 1. delay 0 → 0x72 (114 ms/frame).
 2. mode 2: first wait until back anim 1 finishes its cycle (0x45f81c(world, 0, 1)).
 3. fx>0: FX.dat[fx] loaded (0x455cf8(FX, fx, 1)) and started after anim load (0x455e54) → sound synchronised with frame 0.
 4. Load Partial.dat[idx] into a TFLC player (VMT 0x44e8c4, 0x44f4bc mode 0). Frame count = u16 @anim+0xb, frames 0..count-1.
-5. Hiding characters (erase via 0x457b90(c,0); redraw via 0x457bec at the end), done in y-order:
-   - hero hidden if mode ∈ {3,4,10}
-   - 2nd char hidden if it is in the current room and mode ∈ {0,1,2,3,10}
-   - modes 5..9: nobody hidden (any other mode value hides only per above rules).
+5. Characters (corrected from asm 0x45ad47..0x45ae93): both hero and 2nd char are hidden first; then the
+   hero is shown again only for mode ∈ {3,4,10}, the 2nd char (if in the room) only for mode ≤ 3 or 10.
+   Kept characters are erased (0x457080) and redrawn (0x457bec) around every frame (0x45af73..0x45b13a).
    mode 1: after hiding, current frame of back-anim 1 is stamped into the background buffer (0x44fc40 → 0x4694c0).
 6. Loop per frame: music tick (0x459714); if mode 2 and anim1 active, skip drawing until anim1 frame counter (+0x90) returns to 0
    (sync start); draw frame into back buffer (0x44f744 = decode delta frame onto [0x469758], pitch [0x469828]);

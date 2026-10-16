@@ -162,7 +162,7 @@ Opcode-name strings and argc (address of `PTR_s_Nothing_00468b50`):
 | 31 | CleanUpInv | 0 | hero inventory count=0 |
 | 32 | StaticWalk | 4 | blocking straight walk of char a4 to (a1,a2), final dir a3 (0x45e2cc); ESC/click snaps |
 | 33 | StaticTurn | 2 | blocking turn of char a2 to dir a1 (0x45e510) |
-| 34 | PlayPartialX | 4 | 0x45ac50(Partial a1, a2, mode a3, fx a4) |
+| 34 | PlayPartialX | 4 | 0x45ac50(Partial a1, delay a2, fx a3, mode a4); corrected: data reads `580 0 0 3` = mode 3 |
 | 35 | ChangeStatic | 2 | default speaker 0x469144 = a1 |
 | 36 | SpecialFX | 1 | 0x45fe30: 1 = cannon minigame (0x45ef1c; battleship: 21×8 grid of 26 px at (46,42), one random 2×6 ship, 25 shots, Data.dat 0x28–0x2b) → run region 11 (fail) / 10 (success) of current room; 2..4 → music set a1−1 |
 | 37 | Delay | 1 | 0x45f81c: wait a1 ticks (70 ms), skippable |

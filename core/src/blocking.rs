@@ -289,7 +289,20 @@ impl Game {
         self.reset_base();
     }
 
-    /// PlayPartial 0x45ac50.
+    /// PlayPartial 0x45ac50. `mode` decides what happens to the characters (0x45ad47..0x45ae93):
+    ///
+    /// | mode | hero    | companion | typical use                                         |
+    /// |------|---------|-----------|-----------------------------------------------------|
+    /// | 0–2  | hidden  | visible   | the anim draws the hero itself (stairs, tying vine) |
+    /// | 3    | visible | visible   | someone else acts, both stay (dialogue anims)       |
+    /// | 4    | visible | hidden    |                                                     |
+    /// | 5–9  | hidden  | hidden    | the anim draws both                                 |
+    /// | 10   | visible | visible   | like 3, and the anim is also painted into the room  |
+    ///
+    /// Visible characters are erased and redrawn around every frame. Mode 1 first stamps the
+    /// current frame of back anim 1 into the room; mode 2 waits for back anim 1 to finish its
+    /// cycle. Script ops: `PlayPartial anim delay fx` (mode 0) and
+    /// `PlayPartialX anim delay fx mode`.
     pub async fn play_partial(&mut self, idx: i32, delay: i32, mode: i32, fx: i32) {
         self.ctx = "partial";
         if std::env::var_os("OSTROV_DEBUG").is_some() {
