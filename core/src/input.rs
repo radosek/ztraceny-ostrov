@@ -53,7 +53,7 @@ impl Input {
                     self.left = true;
                     self.double = self
                         .last_click
-                        .is_some_and(|(t, px, py)| self.now.saturating_sub(t) < 400 && (px - x).abs() < 12 && (py - y).abs() < 12);
+                        .is_some_and(|(t, px, py)| self.now.saturating_sub(t) < 500 && (px - x).abs() < 20 && (py - y).abs() < 20);
                     self.last_click = Some((self.now, x, y));
                 }
             }

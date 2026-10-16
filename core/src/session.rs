@@ -170,7 +170,10 @@ impl Game {
                 return;
             }
         }
-        if !self.start_region(region, (x, y), item)
+        self.run_next = run;
+        let started = self.start_region(region, (x, y), item);
+        self.run_next = false;
+        if !started
             && let Some(l) = self.queued_say.take()
         {
             self.say(l).await;

@@ -135,6 +135,10 @@ pub struct Game {
     pub auto: bool,
     /// Draw the hotspot overlay on the next present (main loop only).
     pub show_hotspots: bool,
+    /// Bot mode but still drawing (replays that dump frames).
+    pub auto_draw: bool,
+    /// The click that started the current script was a double click: walks run.
+    pub run_next: bool,
     /// Short message shown on top of the game (quick save etc.) until the given time.
     pub toast: Option<(Vec<u8>, u64)>,
 }
@@ -210,6 +214,8 @@ impl Game {
             menu_loaded: false,
             auto: false,
             show_hotspots: false,
+            auto_draw: false,
+            run_next: false,
             toast: None,
         };
         g.apply_volumes();
@@ -275,7 +281,7 @@ impl Game {
 
     /// Flip: mix audio up to now and publish the back buffer.
     pub fn present(&mut self) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let now = self.clock.now();
@@ -326,7 +332,7 @@ impl Game {
     }
 
     pub fn play(&self, ch: Channel, a: Arc8, i: i32) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         if let Some(s) = self.a.sound(a, i) {
@@ -429,7 +435,7 @@ impl Game {
         for c in &mut self.char_saves {
             *c = None;
         }
-        if !self.auto {
+        if !self.auto || self.auto_draw {
             self.scr.bg_to_back();
         }
         self.room_changed = true;
@@ -509,10 +515,16 @@ impl Game {
                     if let Some(r) = self.char_room(c).cloned() {
                         self.chars[c].goto(&r, a[0] as i32, a[1] as i32, a[2] as i8);
                         self.chars[c].busy = true;
+                        if c == HERO && self.run_next {
+                            self.chars[c].run = true;
+                        }
                     }
                 }
                 25 => {
                     self.hero_walk(click.0, click.1);
+                    if self.run_next {
+                        self.chars[HERO].run = true;
+                    }
                 }
                 3 | 4 | 0x22 | 0x27 | 0x29 => self.blocking = true,
                 _ => {}

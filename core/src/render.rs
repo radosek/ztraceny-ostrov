@@ -92,7 +92,7 @@ impl Game {
 
     /// 0x45c1fc: priority mask from room +0x5c.
     pub fn load_mask(&mut self) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let fg = self.cur().fg;
@@ -109,7 +109,7 @@ impl Game {
     }
 
     pub(crate) fn draw_region_image(&mut self, ri: usize) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let r = &self.rooms[self.room].regions[ri];
@@ -125,7 +125,7 @@ impl Game {
 
     /// Restore an image's rectangle from the clean room background (copy 0x468b34).
     pub(crate) fn erase_image(&mut self, img: i32, kind: u8, x: i32, y: i32) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         if img == 0 {
@@ -158,7 +158,7 @@ impl Game {
 
     /// 0x45b5b0 RedrawRoom: background, current back-anim frames, region images (highest first).
     pub fn redraw_room(&mut self) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let r = self.cur();
@@ -206,7 +206,7 @@ impl Game {
 
     /// Re-decode from the start up to the current frame onto the background (0x44fc10).
     fn restamp_anim(&mut self, slot: usize) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let Some(s) = self.anims[slot].clone() else { return };
@@ -252,7 +252,7 @@ impl Game {
 
     /// NPC anim 0x44fc40: if mid-cycle, play the rest so it lands on its rest frame.
     pub(crate) fn npc_settle(&mut self, c: usize) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let Some(mut s) = self.npc_anims[c].clone() else { return };
@@ -303,7 +303,7 @@ impl Game {
 
     /// Show 0x457bec: save-under, then draw 0x456a18.
     pub(crate) fn show_char(&mut self, c: usize) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let ch = &self.chars[c];
@@ -357,7 +357,7 @@ impl Game {
 
     /// 0x45c154 RedrawChars.
     pub fn redraw_chars(&mut self, include_hero: bool) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         self.scr.bg_to_back();
@@ -407,7 +407,7 @@ impl Game {
     // ---- tooltips, cursor, panel --------------------------------------------------------
 
     pub(crate) fn tip_show(&mut self, speech: bool) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         let t = if speech { &mut self.speech } else { &mut self.hover };
@@ -446,7 +446,7 @@ impl Game {
     }
 
     pub(crate) fn cursor_show(&mut self) {
-        if self.auto {
+        if self.auto && !self.auto_draw {
             return;
         }
         if self.cursor.visible {

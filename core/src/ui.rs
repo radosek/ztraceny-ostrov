@@ -641,6 +641,8 @@ impl Game {
                 format!("Animace na střed: {}", on(s.center_cutscenes)),
                 format!("Ukládat při změně místnosti: {}", on(s.autosave_rooms)),
                 format!("Inventář: {}", if s.modern_inventory { "moderní (klik = vzít)" } else { "původní" }),
+                "Nahrát automatickou pozici".to_string(),
+                "Nahrát rychlou pozici (F9)".to_string(),
                 "Zavřít (Esc)".to_string(),
             ]
             .into_iter()
@@ -719,7 +721,21 @@ impl Game {
                     io.writes.push(("Main.cfg".into(), cfg));
                 }
                 self.apply_volumes();
-                if i == 10 {
+                if i == 10 || i == 11 {
+                    let path = if i == 10 { crate::app::AUTOSAVE } else { crate::session::QUICKSAVE };
+                    let data = self.io.borrow().files.get(path).cloned();
+                    match data.map(|d| self.load(&d)) {
+                        Some(Ok(())) => {
+                            self.toast(&crate::reader::to_cp1250("Pozice nahrána"));
+                            self.redraw = true;
+                            self.clear_input();
+                            self.reset_base();
+                            return;
+                        }
+                        _ => self.toast(&crate::reader::to_cp1250("Ta pozice zatím neexistuje")),
+                    }
+                }
+                if i == 12 {
                     break;
                 }
             }
