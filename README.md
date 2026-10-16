@@ -7,6 +7,11 @@ scripts unchanged.
 
 No game data is included. Point it at your own copy.
 
+*Ztracený Ostrov* © 2000 Riki Computer Games / Mayhem Studios, published by Bohemia Interactive.
+Credits: Tomáš Benčík, Marek Forray, Martin Moško, Richard Pintér and the Riki / Mayhem team.
+This repository contains only an independently written engine that reads the original files;
+it includes no graphics, sound, text or scripts from the game. Rights holders: please get in touch.
+
 ## Run
 
 ```sh
@@ -71,3 +76,8 @@ cargo run --release -p ostrov-core --example autoplay -- <game-dir> 5000   # exp
 - macOS universal app: `./scripts/package-macos.sh`
 - Linux AppImage: `./scripts/package-linux.sh`
 - CI (`.github/workflows/release.yml`) builds all three plus the web bundle; tags `v*` publish a release.
+
+## License
+
+The engine code is licensed under either of MIT ([LICENSE-MIT](LICENSE-MIT)) or Apache-2.0
+([LICENSE-APACHE](LICENSE-APACHE)), at your option. The game itself is not covered.

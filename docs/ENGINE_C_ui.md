@@ -76,8 +76,8 @@ PlayPartial is blocking; the interpreter continues afterwards. Partial frames ar
 - LMB on a cell: shots--; board redraw 0x45ee38; cannon-fire effect 0x45ebbc(effect 0x0c, x=320, y=305, frame 0x101).
   - empty cell: splash effect 0x45ebbc(0x18, x=46+26*col+12, y=42+26*row+14, 0x100).
   - ship cell: mark hit (v+=0x80 if v<0x81), draw hits 0x45e84c, explosion 0x45ebbc(0x12, 46+26c+10, 42+26r+10, 0x102),
-    caption line 501 "Zásah." (0x45e930 = say line inside minigame). Win when no cell with 1..0x80 remains.
-  - not won and shots==0 → line 502 "Došla mi munice." → lose.
+    caption line 501 (0x45e930 = say line inside minigame). Win when no cell with 1..0x80 remains.
+  - not won and shots==0 → line 502 → lose.
 - Pacing 114 ms/frame; loop ends on win/lose. Teardown: free assets, fade, restore palette, redraw flag, T=now-57.
 - Then the interpreter runs region 10 (win) or 11 (lose) script of the current room (room 0x20b "Pri dele") from PC 0.
 

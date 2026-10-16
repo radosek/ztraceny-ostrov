@@ -193,7 +193,7 @@ Bit 7 of the opcode word is never set in shipped data (masked anyway).
   snaps y downward ≤ 0x1a3).
 - Hardcoded gate: if flag **0x200** (hero dressed) is clear, only cursor-4 regions and the special cases
   (room 0x200 region 1, room 0x204 regions 1/3, room 0x205 region 0) are allowed; otherwise `Say(0x20b)`
-  ("No snad se tu nebudu špacírovat nahej!").
+  (a "not without clothes" line).
 - Else world+0x128=region, StartRegion.
 - Hover (0x45b7a0 / 0x462dd8): returns cursor (region cursor, 2 over walk area, 5 default) and label → tooltip at mouse+10.
 
