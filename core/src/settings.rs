@@ -17,6 +17,8 @@ pub enum Scaling {
     Smooth,
     /// Fill, scanlines and shadow mask.
     Crt,
+    /// Fill, xBRZ 4× pixel-art upscaling.
+    Xbrz,
 }
 
 impl Scaling {
@@ -25,7 +27,8 @@ impl Scaling {
             Scaling::Fill => Scaling::Sharp,
             Scaling::Sharp => Scaling::Smooth,
             Scaling::Smooth => Scaling::Crt,
-            Scaling::Crt => Scaling::Fill,
+            Scaling::Crt => Scaling::Xbrz,
+            Scaling::Xbrz => Scaling::Fill,
         }
     }
 }
@@ -79,6 +82,7 @@ impl Settings {
                         "sharp" => Scaling::Sharp,
                         "smooth" => Scaling::Smooth,
                         "crt" => Scaling::Crt,
+                        "xbrz" => Scaling::Xbrz,
                         _ => Scaling::Fill,
                     }
                 }
@@ -109,6 +113,7 @@ impl Settings {
                 Scaling::Fill => "fill",
                 Scaling::Smooth => "smooth",
                 Scaling::Crt => "crt",
+                Scaling::Xbrz => "xbrz",
             },
             self.center_cutscenes,
             self.autosave_rooms,

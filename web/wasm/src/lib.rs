@@ -122,6 +122,7 @@ impl Game {
             Scaling::Fill => 1,
             Scaling::Smooth => 2,
             Scaling::Crt => 3,
+            Scaling::Xbrz => 2,
         }
     }
 

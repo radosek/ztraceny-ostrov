@@ -12,6 +12,30 @@ use ostrov_core::{
 use pixels::{Pixels, SurfaceTexture};
 
 mod filter;
+
+/// xBRZ factor for the pixel-art mode.
+const XBRZ: u32 = 4;
+
+/// Runs xBRZ off the main thread; always works on the newest frame it was given.
+struct Upscaler {
+    tx: std::sync::mpsc::SyncSender<Vec<u8>>,
+    rx: std::sync::mpsc::Receiver<Vec<u8>>,
+}
+
+impl Upscaler {
+    fn new() -> Self {
+        let (tx, in_rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1);
+        let (out_tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            while let Ok(f) = in_rx.recv() {
+                if out_tx.send(xbrz::scale_rgba(&f, 640, 480, XBRZ as usize)).is_err() {
+                    break;
+                }
+            }
+        });
+        Self { tx, rx }
+    }
+}
 use std::{
     collections::{HashMap, VecDeque},
     num::NonZero,
@@ -169,6 +193,9 @@ struct Runner {
     mods: winit::keyboard::ModifiersState,
     scaling: ostrov_core::settings::Scaling,
     filter: Option<filter::Filter>,
+    upscaler: Option<Upscaler>,
+    /// Size of the pixels buffer (640×480, or ×XBRZ in pixel-art mode).
+    buf_scale: u32,
 }
 
 impl Runner {
@@ -235,8 +262,32 @@ impl Runner {
             }
         }
         self.apply_settings();
+        let xbrz = self.scaling == ostrov_core::settings::Scaling::Xbrz;
+        let want = if xbrz { XBRZ } else { 1 };
+        if want != self.buf_scale
+            && let Some(px) = self.pixels.as_mut()
+        {
+            let _ = px.resize_buffer(640 * want, 480 * want);
+            self.buf_scale = want;
+            self.last_frame = 0;
+        }
         let io = self.app.io.borrow();
-        if io.frames != self.last_frame
+        if xbrz {
+            let up = self.upscaler.get_or_insert_with(Upscaler::new);
+            if io.frames != self.last_frame {
+                let mut rgba = vec![0u8; 640 * 480 * 4];
+                rgb565_to_rgba(&io.frame, &mut rgba);
+                if up.tx.try_send(rgba).is_ok() {
+                    self.last_frame = io.frames;
+                }
+            }
+            if let Some(scaled) = up.rx.try_iter().last()
+                && let Some(px) = self.pixels.as_mut()
+                && px.frame().len() == scaled.len()
+            {
+                px.frame_mut().copy_from_slice(&scaled);
+            }
+        } else if io.frames != self.last_frame
             && let Some(px) = self.pixels.as_mut()
         {
             self.last_frame = io.frames;
@@ -323,7 +374,8 @@ impl ApplicationHandler for Runner {
                         Ok(v) => v,
                         Err(e) => p.clamp_pixel_pos(e),
                     };
-                    self.mouse = (x as i32, y as i32);
+                    let k = self.buf_scale.max(1) as i32;
+                    self.mouse = (x as i32 / k, y as i32 / k);
                     self.send(Event::MouseMove(self.mouse.0, self.mouse.1));
                 }
             }
@@ -396,7 +448,7 @@ impl ApplicationHandler for Runner {
                 if let (Some(p), Some(w)) = (&self.pixels, &self.window) {
                     use ostrov_core::settings::Scaling;
                     let mode = match self.scaling {
-                        Scaling::Smooth => 1,
+                        Scaling::Smooth | Scaling::Xbrz => 1,
                         Scaling::Crt => 2,
                         _ => 0,
                     };
@@ -460,6 +512,8 @@ fn main() -> Result<()> {
         mods: Default::default(),
         scaling: ostrov_core::settings::Scaling::Sharp,
         filter: None,
+        upscaler: None,
+        buf_scale: 1,
     };
     el.run_app(&mut r)?;
     Ok(())

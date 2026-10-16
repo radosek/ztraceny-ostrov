@@ -648,6 +648,7 @@ impl Game {
                         Scaling::Fill => t("ostré pixely, celá plocha", "sharp, fill window"),
                         Scaling::Smooth => t("vyhlazený", "smooth"),
                         Scaling::Crt => t("CRT monitor", "CRT monitor"),
+                        Scaling::Xbrz => t("xBRZ vyhlazení pixelů", "xBRZ pixel art"),
                     }
                 ),
                 format!("{}: {}", t("Animace na střed", "Centre cut-scenes"), on(s.center_cutscenes)),
