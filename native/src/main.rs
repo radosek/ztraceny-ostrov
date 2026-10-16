@@ -123,6 +123,7 @@ struct Runner {
     mouse: (i32, i32),
     pad_pos: (f32, f32),
     last_frame: u64,
+    mods: winit::keyboard::ModifiersState,
 }
 
 impl Runner {
@@ -247,14 +248,30 @@ impl ApplicationHandler for Runner {
                     });
                 }
             }
+            WindowEvent::ModifiersChanged(m) => self.mods = m.state(),
             WindowEvent::KeyboardInput { event: KeyEvent { logical_key, state: ElementState::Pressed, text, .. }, .. } => {
-                match &logical_key {
-                    Key::Named(NamedKey::F11) => {
-                        if let Some(w) = &self.window {
-                            w.set_fullscreen(if w.fullscreen().is_some() { None } else { Some(Fullscreen::Borderless(None)) });
-                        }
-                        return;
+                let cmd = self.mods.super_key() || self.mods.alt_key();
+                let fullscreen = match &logical_key {
+                    Key::Named(NamedKey::F11) => true,
+                    Key::Named(NamedKey::Enter) => cmd,
+                    Key::Character(c) => self.mods.super_key() && c.eq_ignore_ascii_case("f"),
+                    _ => false,
+                };
+                if fullscreen {
+                    if let Some(w) = &self.window {
+                        w.set_fullscreen(if w.fullscreen().is_some() { None } else { Some(Fullscreen::Borderless(None)) });
                     }
+                    return;
+                }
+                if self.mods.super_key() {
+                    if let Key::Character(c) = &logical_key
+                        && c.eq_ignore_ascii_case("q")
+                    {
+                        self.app.io.borrow_mut().quit = true;
+                    }
+                    return;
+                }
+                match &logical_key {
                     Key::Named(NamedKey::Escape) => self.send(Event::KeyDown(KEY_ESC)),
                     Key::Named(NamedKey::Enter) => self.send(Event::KeyDown(KEY_ENTER)),
                     Key::Named(NamedKey::Backspace) => self.send(Event::KeyDown(KEY_BACK)),
@@ -326,6 +343,7 @@ fn main() -> Result<()> {
         mouse: (320, 240),
         pad_pos: (0.0, 0.0),
         last_frame: 0,
+        mods: Default::default(),
     };
     el.run_app(&mut r)?;
     Ok(())

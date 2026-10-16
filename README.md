@@ -21,7 +21,7 @@ Saves and settings live in the per-user data folder (`ztraceny-ostrov/`).
 | mouse | as in the original: left = act, right = inventory / drop held item |
 | `I` | inventory |
 | `Esc` | skip speech, animation or video |
-| `F11` | fullscreen |
+| `F11`, `Cmd+F` (macOS), `Alt+Enter` | fullscreen |
 | controller | stick = pointer, A = click, B = right click, Y = inventory, Start = Esc |
 
 ## Layout
