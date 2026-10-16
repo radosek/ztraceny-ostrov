@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use ostrov_core::{
     archive::Archive,
     audio,
-    flc::{Flc, PLAYFIELD_W},
+    flc::{self, PLAYFIELD_W},
     gfx::{self, Image, Kind, Palette, SCENE_PALETTE_FIRST},
     reader::cp1250,
     text,
@@ -41,20 +41,16 @@ fn scene_palette(base: &Palette, scene: &Palette) -> Palette {
 }
 
 fn dump_flc(dir: &Path, i: usize, e: &[u8], pal: &Palette, max_frames: usize) -> Result<()> {
-    let flc = Flc::parse(e)?;
-    let mut d = flc.decoder_on(vec![0; PLAYFIELD_W * 480], *pal);
-    d.palette_floor = if flc.is_delta_only() { SCENE_PALETTE_FIRST } else { 0 };
-    let mut screen = d.pixels.clone();
+    let h = flc::header(e)?;
+    let mut sink = flc::Indexed {
+        pixels: vec![0; PLAYFIELD_W * 480],
+        palette: *pal,
+        palette_floor: if h.delta_only { SCENE_PALETTE_FIRST } else { 0 },
+    };
+    let mut pos = h.start();
     let mut n = 0;
-    while n < max_frames && d.next_frame().with_context(|| format!("frame {n}"))? {
-        screen.copy_from_slice(&d.pixels);
-        for r in &d.rects {
-            for y in 0..r.h as usize {
-                let dst = (r.y as usize + y) * PLAYFIELD_W + r.x as usize;
-                screen[dst..dst + r.w as usize].copy_from_slice(&r.pixels[y * r.w as usize..(y + 1) * r.w as usize]);
-            }
-        }
-        write_png(&dir.join(format!("{i:04}_{n:04}.png")), 640, 480, &screen, &d.palette, None)?;
+    while n < max_frames.min(h.frames as usize) && flc::decode_frame(e, &mut pos, true, &mut sink).with_context(|| format!("frame {n}"))? {
+        write_png(&dir.join(format!("{i:04}_{n:04}.png")), 640, 480, &sink.pixels, &sink.palette, None)?;
         n += 1;
     }
     Ok(())

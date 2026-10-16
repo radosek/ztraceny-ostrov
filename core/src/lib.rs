@@ -1,7 +1,14 @@
 pub mod archive;
+pub mod assets;
 pub mod audio;
+pub mod character;
 pub mod flc;
+pub mod geom;
 pub mod gfx;
+pub mod input;
+pub mod mixer;
 pub mod reader;
+pub mod sched;
+pub mod screen;
 pub mod text;
 pub mod world;

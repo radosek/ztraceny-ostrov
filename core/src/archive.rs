@@ -55,3 +55,25 @@ impl<'a> Archive<'a> {
         (0..self.len()).filter_map(|i| Some((i, self.get(i)?)))
     }
 }
+
+/// An archive that owns its bytes. `entry` follows TDataFile seek (0x44e6a8): a missing or
+/// out-of-range index silently becomes index 1.
+pub struct Pack {
+    data: Vec<u8>,
+    entries: Vec<Option<Range<usize>>>,
+}
+
+impl Pack {
+    pub fn new(data: Vec<u8>) -> Result<Self, ArchiveError> {
+        let entries = Archive::parse(&data)?.entries;
+        Ok(Self { data, entries })
+    }
+
+    pub fn exact(&self, i: usize) -> Option<&[u8]> {
+        Some(&self.data[self.entries.get(i)?.clone()?])
+    }
+
+    pub fn entry(&self, i: i32) -> &[u8] {
+        usize::try_from(i).ok().and_then(|i| self.exact(i)).or_else(|| self.exact(1)).unwrap_or(&[])
+    }
+}
