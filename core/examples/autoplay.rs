@@ -44,6 +44,7 @@ async fn explore(mut g: Game, max: usize) -> String {
     let mut states = 0;
     let mut best = (0i64, Vec::new());
     let mut rooms_seen = HashSet::new();
+    let mut dead = HashSet::new();
     while let Some((sc, _, save, path)) = heap.pop() {
         states += 1;
         if states > max {
@@ -55,7 +56,7 @@ async fn explore(mut g: Game, max: usize) -> String {
         rooms_seen.insert(g.cur_id());
         if sc > best.0 {
             best = (sc, path.clone());
-            eprintln!("[{states}] score {sc} room {:#x} items {:?} depth {}", g.cur_id(), g.chars[0].items, path.len());
+            eprintln!("[{states}] score {sc} room {:#x} rooms {} items {:?} depth {}", g.cur_id(), rooms_seen.len(), g.chars[0].items, path.len());
         }
         let mut actions: Vec<(i32, i32)> = Vec::new();
         let items: Vec<i32> = g.chars[0].items.iter().map(|&i| i as i32).collect();
@@ -63,18 +64,29 @@ async fn explore(mut g: Game, max: usize) -> String {
             .filter(|&r| g.cur().regions[r as usize].enabled)
             .chain([0x800, 0x801])
             .collect();
+        for (i, &a) in items.iter().enumerate() {
+            for &b in &items[i + 1..] {
+                actions.push((-10, a * 1000 + b));
+            }
+        }
         for &r in &regions {
             actions.push((r, -1));
             for &it in &items {
                 actions.push((r, it));
             }
         }
+        let fk = key(&g);
         for (r, it) in actions {
+            let room = g.cur_id();
+            let key_before = key(&g);
+            if dead.contains(&(fk, room, r, it)) {
+                continue;
+            }
             if g.load(&save).is_err() {
                 break;
             }
-            let room = g.cur_id();
-            if !g.act(r, it).await {
+            let acted = if r == -10 { g.combine(it / 1000, it % 1000).await } else { g.act(r, it).await };
+            if !acted {
                 continue;
             }
             if g.game_over {
@@ -83,6 +95,9 @@ async fn explore(mut g: Game, max: usize) -> String {
                 return format!("GAME OVER reached after {states} states, path length {}\n{}", p.len(), p.join("\n"));
             }
             let k = key(&g);
+            if k == key_before {
+                dead.insert((fk, room, r, it));
+            }
             if seen.insert(k) {
                 let mut p = path.clone();
                 p.push(format!("{room:#x}:{r}:{it}"));

@@ -355,7 +355,7 @@ impl Game {
         result
     }
 
-    async fn combine(&mut self, a: i32, b: i32) -> bool {
+    pub async fn combine(&mut self, a: i32, b: i32) -> bool {
         const COMBOS: [(i32, i32, u8, bool, Option<i32>); 6] = [
             (0x18, 0x0b, 0x0c, true, None),
             (0x0f, 0x0d, 0x0e, false, None),

@@ -92,6 +92,9 @@ impl Game {
 
     /// 0x45c1fc: priority mask from room +0x5c.
     pub fn load_mask(&mut self) {
+        if self.auto {
+            return;
+        }
         let fg = self.cur().fg;
         self.scr.mask.fill(0);
         if fg > 0
@@ -106,6 +109,9 @@ impl Game {
     }
 
     pub(crate) fn draw_region_image(&mut self, ri: usize) {
+        if self.auto {
+            return;
+        }
         let r = &self.rooms[self.room].regions[ri];
         let (img, kind, x, y) = (r.image as i32, r.image_type, r.x as i32, r.y as i32);
         if img > 0 {
@@ -119,6 +125,9 @@ impl Game {
 
     /// Restore an image's rectangle from the clean room background (copy 0x468b34).
     pub(crate) fn erase_image(&mut self, img: i32, kind: u8, x: i32, y: i32) {
+        if self.auto {
+            return;
+        }
         if img == 0 {
             return;
         }
@@ -149,6 +158,9 @@ impl Game {
 
     /// 0x45b5b0 RedrawRoom: background, current back-anim frames, region images (highest first).
     pub fn redraw_room(&mut self) {
+        if self.auto {
+            return;
+        }
         let r = self.cur();
         let (bg, kind) = (r.bg as i32, r.bg_type);
         if bg > 0
@@ -194,6 +206,9 @@ impl Game {
 
     /// Re-decode from the start up to the current frame onto the background (0x44fc10).
     fn restamp_anim(&mut self, slot: usize) {
+        if self.auto {
+            return;
+        }
         let Some(s) = self.anims[slot].clone() else { return };
         let mut t = AnimSlot { pos: s.header.start(), ..s.clone() };
         let n = if s.pos.frame == 0 { s.header.frames as u32 } else { s.pos.frame };
@@ -237,6 +252,9 @@ impl Game {
 
     /// NPC anim 0x44fc40: if mid-cycle, play the rest so it lands on its rest frame.
     pub(crate) fn npc_settle(&mut self, c: usize) {
+        if self.auto {
+            return;
+        }
         let Some(mut s) = self.npc_anims[c].clone() else { return };
         if s.pos.frame != 0 && s.header.frames > 1 {
             for _ in 0..(s.header.frames as u32).saturating_sub(s.pos.frame) {
@@ -285,6 +303,9 @@ impl Game {
 
     /// Show 0x457bec: save-under, then draw 0x456a18.
     pub(crate) fn show_char(&mut self, c: usize) {
+        if self.auto {
+            return;
+        }
         let ch = &self.chars[c];
         if ch.is_anim_npc || (ch.x == -255 && ch.y == -255) {
             return;
@@ -337,6 +358,9 @@ impl Game {
 
     /// 0x45c154 RedrawChars.
     pub fn redraw_chars(&mut self, include_hero: bool) {
+        if self.auto {
+            return;
+        }
         self.scr.bg_to_back();
         for c in &mut self.char_saves {
             *c = None;
@@ -384,6 +408,9 @@ impl Game {
     // ---- tooltips, cursor, panel --------------------------------------------------------
 
     pub(crate) fn tip_show(&mut self, speech: bool) {
+        if self.auto {
+            return;
+        }
         let t = if speech { &mut self.speech } else { &mut self.hover };
         if t.visible || t.layout.lines.iter().all(|l| l.is_empty()) {
             return;
@@ -420,6 +447,9 @@ impl Game {
     }
 
     pub(crate) fn cursor_show(&mut self) {
+        if self.auto {
+            return;
+        }
         if self.cursor.visible {
             return;
         }
