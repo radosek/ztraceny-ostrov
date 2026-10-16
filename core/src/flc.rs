@@ -1,4 +1,6 @@
-//! Autodesk FLI/FLC decoder (8-bit indexed).
+//! TFlic (0x44f744): Autodesk FLC as the game plays it. Accepts magic 0xAF12 and the
+//! headerless delta-only variant 0x00FF; full-frame RLE is fixed at 640×420; custom chunk
+//! 0x80 carries opaque raw rectangles drawn to the screen only (not the index buffer).
 
 #[derive(Debug, thiserror::Error)]
 pub enum FlcError {
@@ -18,14 +20,34 @@ pub struct Flc<'a> {
     first_frame: usize,
 }
 
+/// Chunk 0x80 rectangle: drawn opaque to the screen, never to the index buffer.
+pub struct Rect<'a> {
+    pub x: u16,
+    pub y: u16,
+    pub w: u16,
+    pub h: u16,
+    pub pixels: &'a [u8],
+}
+
 pub struct Decoder<'a> {
     flc: &'a Flc<'a>,
     pos: usize,
     frame: u32,
+    /// 8-bit index buffer (the game's mirror at 0x468b3c).
     pub pixels: Vec<u8>,
     /// RGB, 8 bits per channel.
     pub palette: [[u8; 3]; 256],
+    /// Apply COLOR_256 chunks (flic+0x94); only set for full-screen cut-scenes.
+    pub palette_enabled: bool,
+    /// COLOR_256 leaves indices below this alone (0x468b2c: 0 or 0x38).
+    pub palette_floor: usize,
+    pub palette_changed: bool,
+    /// Rectangles from chunk 0x80 in the last decoded frame.
+    pub rects: Vec<Rect<'a>>,
 }
+
+pub const PLAYFIELD_W: usize = 640;
+pub const PLAYFIELD_H: usize = 420;
 
 fn u16_at(d: &[u8], o: usize) -> Result<u16, FlcError> {
     d.get(o..o + 2)
@@ -45,11 +67,10 @@ impl<'a> Flc<'a> {
     pub fn parse(data: &'a [u8]) -> Result<Self, FlcError> {
         let magic = u16_at(data, 4)?;
         let (speed_ms, first_frame) = match magic {
-            0xAF12 => {
+            0xAF12 | 0x00FF => {
                 let o = u32_at(data, 80)? as usize;
                 (u32_at(data, 16)?, if o == 0 { 128 } else { o })
             }
-            0xAF11 => (u16_at(data, 16)? as u32 * 1000 / 70, 128),
             m => return Err(FlcError::Magic(m)),
         };
         Ok(Self {
@@ -62,18 +83,31 @@ impl<'a> Flc<'a> {
         })
     }
 
-    pub fn decoder(&'a self) -> Decoder<'a> {
+    pub fn is_delta_only(&self) -> bool {
+        u16::from_le_bytes([self.data[4], self.data[5]]) == 0x00FF
+    }
+
+    /// Decoder starting from `base` (640×480 indices; for delta-only files the current scene).
+    pub fn decoder_on(&'a self, base: Vec<u8>, palette: [[u8; 3]; 256]) -> Decoder<'a> {
         Decoder {
             flc: self,
             pos: self.first_frame,
             frame: 0,
-            pixels: vec![0; self.width as usize * self.height as usize],
-            palette: [[0; 3]; 256],
+            pixels: base,
+            palette,
+            palette_enabled: true,
+            palette_floor: 0,
+            palette_changed: false,
+            rects: Vec::new(),
         }
+    }
+
+    pub fn decoder(&'a self) -> Decoder<'a> {
+        self.decoder_on(vec![0; PLAYFIELD_W * 480], [[0; 3]; 256])
     }
 }
 
-impl Decoder<'_> {
+impl<'a> Decoder<'a> {
     /// Decode the next frame into `pixels`/`palette`. Returns false at the end of the
     /// file (after `frames` frames; the trailing ring frame is not decoded).
     pub fn next_frame(&mut self) -> Result<bool, FlcError> {
@@ -89,9 +123,11 @@ impl Decoder<'_> {
                 return Err(FlcError::Truncated(start));
             }
             self.pos += size;
-            if kind != 0xF1FA {
+            if kind == 0xF100 {
                 continue;
             }
+            self.rects.clear();
+            self.palette_changed = false;
             let chunks = u16_at(d, start + 6)?;
             let mut c = start + 16;
             for _ in 0..chunks {
@@ -106,12 +142,14 @@ impl Decoder<'_> {
         }
     }
 
-    fn chunk(&mut self, ctype: u16, b: &[u8]) -> Result<(), FlcError> {
-        let w = self.flc.width as usize;
-        let h = self.flc.height as usize;
+    fn chunk(&mut self, ctype: u16, b: &'a [u8]) -> Result<(), FlcError> {
+        let w = PLAYFIELD_W;
         match ctype {
-            4 | 11 => {
-                let shift = if ctype == 11 { 2 } else { 0 };
+            4 => {
+                if !self.palette_enabled {
+                    return Ok(());
+                }
+                self.palette_changed = true;
                 let packets = u16_at(b, 0)?;
                 let mut p = 2;
                 let mut idx = 0usize;
@@ -123,9 +161,10 @@ impl Decoder<'_> {
                         n = 256;
                     }
                     for _ in 0..n {
-                        for k in 0..3 {
-                            let v = byte(b, p + k)?;
-                            self.palette[idx & 255][k] = if shift > 0 { (v << 2) | (v >> 4) } else { v };
+                        if idx < 256 && idx >= self.palette_floor {
+                            for k in 0..3 {
+                                self.palette[idx][k] = byte(b, p + k)?;
+                            }
                         }
                         p += 3;
                         idx += 1;
@@ -166,45 +205,24 @@ impl Decoder<'_> {
                             lines -= 1;
                         }
                         3 => y += (word as i16).unsigned_abs() as usize,
-                        2 => self.pixels[y * w + w - 1] = word as u8,
-                        _ => return Err(FlcError::Truncated(p)),
+                        _ => {}
                     }
                 }
             }
-            12 => {
-                let mut y = u16_at(b, 0)? as usize;
-                let lines = u16_at(b, 2)?;
-                let mut p = 4;
-                for _ in 0..lines {
-                    let packets = byte(b, p)?;
-                    p += 1;
-                    let mut x = 0usize;
-                    for _ in 0..packets {
-                        x += byte(b, p)? as usize;
-                        let cnt = byte(b, p + 1)? as i8;
-                        p += 2;
-                        let row = y * w;
-                        if cnt >= 0 {
-                            let n = cnt as usize;
-                            let src = b.get(p..p + n).ok_or(FlcError::Truncated(p))?;
-                            self.pixels[row + x..row + x + n].copy_from_slice(src);
-                            p += n;
-                            x += n;
-                        } else {
-                            let n = (-(cnt as i32)) as usize;
-                            let v = byte(b, p)?;
-                            p += 1;
-                            self.pixels[row + x..row + x + n].fill(v);
-                            x += n;
-                        }
-                    }
-                    y += 1;
+            0x80 => {
+                let n = u16_at(b, 0)?;
+                let mut p = 2;
+                for _ in 0..n {
+                    let (x, y, rw, rh) = (u16_at(b, p)?, u16_at(b, p + 2)?, u16_at(b, p + 4)?, u16_at(b, p + 6)?);
+                    let len = rw as usize * rh as usize;
+                    let pixels = b.get(p + 8..p + 8 + len).ok_or(FlcError::Truncated(p))?;
+                    self.rects.push(Rect { x, y, w: rw, h: rh, pixels });
+                    p += 8 + len;
                 }
             }
-            13 => self.pixels.fill(0),
             15 => {
                 let mut p = 0;
-                for y in 0..h {
+                for y in 0..PLAYFIELD_H {
                     p += 1;
                     let row = &mut self.pixels[y * w..(y + 1) * w];
                     let mut x = 0;
@@ -225,11 +243,6 @@ impl Decoder<'_> {
                         }
                     }
                 }
-            }
-            16 => {
-                let n = w * h;
-                let src = b.get(..n).ok_or(FlcError::Truncated(0))?;
-                self.pixels.copy_from_slice(src);
             }
             _ => {}
         }
