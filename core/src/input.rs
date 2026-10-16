@@ -13,6 +13,8 @@ pub enum Event {
     KeyDown(u16),
     /// Typed character, cp1250.
     Char(u8),
+    /// Hotspot highlight key held (port extra, Space by default).
+    Highlight(bool),
 }
 
 #[derive(Clone, Default, Debug)]
@@ -27,6 +29,11 @@ pub struct Input {
     pub key_down: bool,
     pub key: u16,
     pub chars: Vec<u8>,
+    /// Port extras: highlight key held, and a double click on the last left press.
+    pub highlight: bool,
+    pub double: bool,
+    last_click: Option<(u64, i32, i32)>,
+    pub now: u64,
 }
 
 impl Input {
@@ -43,7 +50,11 @@ impl Input {
                 if right {
                     self.right = true
                 } else {
-                    self.left = true
+                    self.left = true;
+                    self.double = self
+                        .last_click
+                        .is_some_and(|(t, px, py)| self.now.saturating_sub(t) < 400 && (px - x).abs() < 12 && (py - y).abs() < 12);
+                    self.last_click = Some((self.now, x, y));
                 }
             }
             Event::MouseUp { right } => {
@@ -58,6 +69,7 @@ impl Input {
                 self.key = k;
             }
             Event::Char(c) => self.chars.push(c),
+            Event::Highlight(on) => self.highlight = on,
         }
     }
 
@@ -70,6 +82,7 @@ impl Input {
         self.right_up = false;
         self.key_down = false;
         self.chars.clear();
+        self.double = false;
     }
 
     pub fn esc(&self) -> bool {

@@ -43,6 +43,7 @@ fn main() {
             "m" => io.input.apply(Event::MouseMove(v[0], v[1])),
             "k" => io.input.apply(Event::KeyDown(v[0] as u16)),
             "q" => io.quit = true,
+            "h" => io.input.apply(Event::Highlight(v[0] != 0)),
             _ => {}
         }
         for (n, d) in io.writes.drain(..) {

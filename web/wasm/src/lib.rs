@@ -109,6 +109,11 @@ impl Game {
         }
     }
 
+    /// Hotspot highlight key held (Space).
+    pub fn highlight(&self, on: bool) {
+        self.send(Event::Highlight(on));
+    }
+
     /// Asks the game to quit; it writes the autosave and Main.cfg on its next ticks.
     pub fn quit(&self) {
         self.app.io.borrow_mut().quit = true;

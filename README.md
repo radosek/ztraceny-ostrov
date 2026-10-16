@@ -14,12 +14,16 @@ cargo run --release -p ztraceny-ostrov -- "/path/to/Ztracený Ostrov"   # folder
 ```
 
 Without an argument it uses the last folder, then the folder next to the binary, then asks.
-Saves and settings live in the per-user data folder (`ztraceny-ostrov/`).
+Saves and settings live in the per-user data folder (`ztraceny-ostrov/`). The game autosaves on every room change and on quit; window size and fullscreen are remembered.
 
 | Key | |
 |---|---|
 | mouse | as in the original: left = act, right = inventory / drop held item |
 | `I` | inventory |
+| hold `Space` | outline every hotspot (F1: always / off) |
+| `F5` / `F9` | quick save / quick load |
+| `F1` | settings: volumes, subtitles, hotspots, fullscreen, scaling, centred cut-scenes, autosave on room change |
+| double-click | run there |
 | `Esc` | skip speech, animation or video |
 | `F11`, `Cmd+F` (macOS), `Alt+Enter` | fullscreen |
 | controller | stick = pointer, A = click, B = right click, Y = inventory, Start = Esc |

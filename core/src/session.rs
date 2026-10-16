@@ -8,6 +8,10 @@ use crate::geom::inside;
 use crate::mixer::Channel;
 use crate::screen::{H, Target, VIEW_H};
 
+pub const QUICKSAVE: &str = "SaveGame/quick.sav";
+const KEY_F1: u16 = 0x70;
+const KEY_F5: u16 = 0x74;
+const KEY_F9: u16 = 0x78;
 const INV_X: i32 = 107;
 const INV_Y: i32 = 100;
 const INV_CELL: i32 = 46;
@@ -144,12 +148,15 @@ impl Game {
             Some(r) => self.cur().regions[r as usize].cursor,
             None => 0,
         };
+        let run = self.input.double;
         let Some(region) = region else {
             self.hero_walk(x, y);
+            self.chars[HERO].run = run;
             return;
         };
         if cursor == 0 || (item != -1 && cursor == 7) || (walk_only && item == -1 && cursor == 2) {
             self.hero_walk(x, y);
+            self.chars[HERO].run = run;
             return;
         }
         if !self.flag(0x200) {
@@ -408,6 +415,21 @@ impl Game {
         self.dialog > 0 || self.any_talking()
     }
 
+    /// Write a save of the current state to `path` (also kept in memory for loading).
+    pub fn write_save(&mut self, path: &str, name: &[u8]) {
+        self.cursor_hide();
+        self.tip_hide(false);
+        let thumb = crate::save::thumbnail(&self.scr.back);
+        let data = self.save(name, &thumb);
+        let mut io = self.io.borrow_mut();
+        io.files.insert(path.to_string(), data.clone());
+        io.writes.push((path.to_string(), data));
+    }
+
+    pub fn toast(&mut self, text: &[u8]) {
+        self.toast = Some((text.to_vec(), self.clock.now() + 2000));
+    }
+
     /// One game session (outer loop body of 0x4630a4).
     pub async fn run_session(&mut self, intro: bool) -> Exit {
         self.io.borrow_mut().mixer.stop_all();
@@ -429,6 +451,7 @@ impl Game {
         let mut was_talking = !self.talking_now();
         let mut panel_hover = -2;
         let mut hover_at = (-1, -1);
+        let mut last_room = self.cur_id();
         loop {
             self.music_tick();
             let talk = self.talking_now();
@@ -456,8 +479,22 @@ impl Game {
             } else {
                 self.tip_show(true);
             }
+            let hs = self.io.borrow().settings.hotspots;
+            self.show_hotspots = !talk
+                && match hs {
+                    crate::settings::Hotspots::Always => true,
+                    crate::settings::Hotspots::HoldSpace => self.input.highlight,
+                    crate::settings::Hotspots::Off => false,
+                };
             self.present();
+            self.show_hotspots = false;
             self.wait_tick().await;
+            if self.cur_id() != last_room {
+                last_room = self.cur_id();
+                if self.io.borrow().settings.autosave_rooms {
+                    self.write_save(crate::app::AUTOSAVE, b"AUTOSAVE");
+                }
+            }
             if self.held >= 0 && !self.chars[HERO].items.contains(&(self.held as u8)) {
                 self.held = -1;
             }
@@ -503,6 +540,23 @@ impl Game {
                 panel_hover = -2;
             } else if self.input.key_down && self.input.key == b'I' as u16 {
                 self.held = self.inventory().await;
+                panel_hover = -2;
+            } else if self.input.key_down && self.input.key == KEY_F5 {
+                self.write_save(QUICKSAVE, b"QUICKSAVE");
+                self.toast(b"Pozice ulo\x9eena (F9 nahraje)");
+            } else if self.input.key_down && self.input.key == KEY_F9 {
+                let data = self.io.borrow().files.get(QUICKSAVE).cloned();
+                match data {
+                    Some(d) if self.load(&d).is_ok() => {
+                        self.toast(b"Pozice nahr\xe1na");
+                        last_room = self.cur_id();
+                    }
+                    _ => self.toast(b"\x8e\xe1dn\xe1 rychl\xe1 pozice (F5 ulo\x9e\xed)"),
+                }
+                panel_hover = -2;
+            } else if self.input.key_down && self.input.key == KEY_F1 {
+                self.hide_overlays();
+                self.settings_panel().await;
                 panel_hover = -2;
             }
             self.script_progress().await;

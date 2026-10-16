@@ -131,7 +131,7 @@ const fromBase64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 /** Windows virtual key for a KeyboardEvent, or 0 if the game doesn't read it. */
 function vk(e) {
-  const named = { Escape: 0x1b, Enter: 0x0d, Backspace: 8, ArrowLeft: 0x25, ArrowRight: 0x27, ArrowUp: 0x26, ArrowDown: 0x28, Home: 0x24, End: 0x23, Delete: 0x2e, " ": 0x20 };
+  const named = { Escape: 0x1b, Enter: 0x0d, Backspace: 8, ArrowLeft: 0x25, ArrowRight: 0x27, ArrowUp: 0x26, ArrowDown: 0x28, Home: 0x24, End: 0x23, Delete: 0x2e, " ": 0x20, F1: 0x70, F5: 0x74, F9: 0x78 };
   if (named[e.key]) return named[e.key];
   if (/^Key[A-Z]$/.test(e.code)) return e.code.charCodeAt(3);
   if (/^Digit[0-9]$/.test(e.code)) return e.code.charCodeAt(5);
@@ -399,7 +399,11 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     const code = vk(e);
     if (code) game.keyDown(code);
     if (e.key.length === 1) game.text(e.key);
+    if (e.key === " ") game.highlight(true);
     if (code || e.key.length === 1) e.preventDefault();
+  });
+  c.addEventListener("keyup", (e) => {
+    if (e.key === " ") game?.highlight(false);
   });
 
   // --- Saves ---------------------------------------------------------------

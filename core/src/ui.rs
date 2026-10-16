@@ -7,6 +7,7 @@ use crate::gfx::Image;
 use crate::mixer::Channel;
 use crate::save::{THUMB_H, THUMB_W};
 use crate::screen::{H, SavedRect, Target};
+use crate::screen::Screen;
 use crate::text_render;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -608,5 +609,124 @@ impl Game {
         }
         self.menu_file = None;
         out
+    }
+}
+
+/// F1 settings panel (port extra), drawn with the game's font over a dark box.
+impl Game {
+    pub async fn settings_panel(&mut self) {
+        use crate::settings::{Hotspots, Scaling};
+        let saved = self.scr.back.clone();
+        let font = self.a.font.clone();
+        let (x0, y0, w, row) = (120, 70, 400, 26);
+        let labels = |g: &Game| -> Vec<Vec<u8>> {
+            let s = &g.io.borrow().settings;
+            let c = &g.cfg;
+            let on = |b: bool| if b { "zap." } else { "vyp." };
+            [
+                format!("Hlasitost hudby: {}", c.music_volume()),
+                format!("Hlasitost zvuku: {}", c.fx_volume()),
+                format!("Hlasitost řeči: {}", c.speech_volume()),
+                format!("Titulky: {}", on(c.subtitles())),
+                format!(
+                    "Aktivní místa: {}",
+                    match s.hotspots {
+                        Hotspots::HoldSpace => "podržet mezerník",
+                        Hotspots::Always => "vždy",
+                        Hotspots::Off => "vyp.",
+                    }
+                ),
+                format!("Celá obrazovka: {}", on(s.fullscreen)),
+                format!("Obraz: {}", if s.scaling == Scaling::Sharp { "ostré pixely" } else { "na celou plochu" }),
+                format!("Animace na střed: {}", on(s.center_cutscenes)),
+                format!("Ukládat při změně místnosti: {}", on(s.autosave_rooms)),
+                "Zavřít (Esc)".to_string(),
+            ]
+            .into_iter()
+            .map(|t| crate::reader::to_cp1250(&t))
+            .collect()
+        };
+        let draw = |g: &mut Game, hover: Option<usize>| {
+            let rows = labels(g);
+            let h = 50 + rows.len() as i32 * row;
+            for y in y0..y0 + h {
+                for x in x0..x0 + w {
+                    let p = &mut g.scr.back[y as usize * 640 + x as usize];
+                    *p = (*p >> 2) & 0x39e7;
+                }
+            }
+            let mut s = Screen { back: std::mem::take(&mut g.scr.back), ..Default::default() };
+            s.lut = g.scr.lut;
+            s.lut[0] = 0;
+            s.lut[1] = 0xffe0;
+            s.lut[2] = 0xffff;
+            let title = text_render::layout(&crate::reader::to_cp1250("Nastavení (F1)"), 60);
+            text_render::draw(&mut s, &font, &title, x0 + 16, y0 + 12, 1);
+            for (i, r) in rows.iter().enumerate() {
+                let l = text_render::layout(r, 60);
+                text_render::draw(&mut s, &font, &l, x0 + 16, y0 + 44 + i as i32 * row, if hover == Some(i) { 1 } else { 2 });
+            }
+            g.scr.back = s.back;
+        };
+        self.cursor.base = 0;
+        self.cursor.item = None;
+        draw(self, None);
+        self.clear_input();
+        self.reset_base();
+        loop {
+            self.cursor_show();
+            self.present();
+            self.wait_tick().await;
+            self.cursor_hide();
+            if self.input.esc() || (self.input.key_down && self.input.key == 0x70) || self.quitting() || self.input.right {
+                break;
+            }
+            let (mx, my) = (self.input.mouse_x, self.input.mouse_y);
+            let n = labels(self).len();
+            let hover = (mx >= x0 && mx < x0 + w && my >= y0 + 44)
+                .then(|| ((my - y0 - 44) / row) as usize)
+                .filter(|&i| i < n);
+            if self.input.left
+                && let Some(i) = hover
+            {
+                let step = |v: u8| if v >= 100 { 0 } else { (v / 25 + 1) * 25 };
+                {
+                    let mut io = self.io.borrow_mut();
+                    let s = &mut io.settings;
+                    match i {
+                        0 => self.cfg.raw[12] = step(self.cfg.raw[12]),
+                        1 => self.cfg.raw[13] = step(self.cfg.raw[13]),
+                        2 => self.cfg.raw[14] = step(self.cfg.raw[14]),
+                        3 => self.cfg.raw[15] = (self.cfg.raw[15] == 0) as u8,
+                        4 => {
+                            s.hotspots = match s.hotspots {
+                                Hotspots::HoldSpace => Hotspots::Always,
+                                Hotspots::Always => Hotspots::Off,
+                                Hotspots::Off => Hotspots::HoldSpace,
+                            }
+                        }
+                        5 => s.fullscreen = !s.fullscreen,
+                        6 => s.scaling = if s.scaling == Scaling::Sharp { Scaling::Fill } else { Scaling::Sharp },
+                        7 => s.center_cutscenes = !s.center_cutscenes,
+                        8 => s.autosave_rooms = !s.autosave_rooms,
+                        _ => {}
+                    }
+                    let text = s.to_text().into_bytes();
+                    io.writes.push((crate::settings::FILE.into(), text));
+                    let cfg = self.cfg.raw.to_vec();
+                    io.writes.push(("Main.cfg".into(), cfg));
+                }
+                self.apply_volumes();
+                if i == 9 {
+                    break;
+                }
+            }
+            self.scr.back.copy_from_slice(&saved);
+            draw(self, hover);
+        }
+        self.scr.back = saved;
+        self.redraw = true;
+        self.clear_input();
+        self.reset_base();
     }
 }

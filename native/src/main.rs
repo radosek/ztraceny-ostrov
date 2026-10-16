@@ -81,6 +81,9 @@ fn load_files() -> HashMap<String, Vec<u8>> {
             }
         }
     }
+    if let Ok(d) = std::fs::read(state_dir().join(ostrov_core::settings::FILE)) {
+        m.insert(ostrov_core::settings::FILE.to_string(), d);
+    }
     m
 }
 
@@ -124,6 +127,7 @@ struct Runner {
     pad_pos: (f32, f32),
     last_frame: u64,
     mods: winit::keyboard::ModifiersState,
+    scaling: ostrov_core::settings::Scaling,
 }
 
 impl Runner {
@@ -189,6 +193,7 @@ impl Runner {
                 q.drain(..n);
             }
         }
+        self.apply_settings();
         let io = self.app.io.borrow();
         if io.frames != self.last_frame
             && let Some(px) = self.pixels.as_mut()
@@ -199,12 +204,47 @@ impl Runner {
     }
 }
 
+impl Runner {
+    /// Fullscreen and scaling come from the game's settings (F1 panel or shortcuts).
+    fn apply_settings(&mut self) {
+        let s = self.app.io.borrow().settings.clone();
+        if let Some(w) = &self.window {
+            if s.fullscreen != w.fullscreen().is_some() {
+                w.set_fullscreen(s.fullscreen.then_some(Fullscreen::Borderless(None)));
+            }
+        }
+        if s.scaling != self.scaling {
+            self.scaling = s.scaling;
+            if let Some(p) = self.pixels.as_mut() {
+                p.set_scaling_mode(match s.scaling {
+                    ostrov_core::settings::Scaling::Sharp => pixels::ScalingMode::PixelPerfect,
+                    ostrov_core::settings::Scaling::Fill => pixels::ScalingMode::Fill,
+                });
+            }
+        }
+    }
+
+    fn toggle_fullscreen(&mut self) {
+        let mut io = self.app.io.borrow_mut();
+        io.settings.fullscreen = !io.settings.fullscreen;
+        let text = io.settings.to_text().into_bytes();
+        io.writes.push((ostrov_core::settings::FILE.into(), text));
+    }
+}
+
 impl ApplicationHandler for Runner {
     fn resumed(&mut self, el: &ActiveEventLoop) {
         if self.window.is_some() {
             return;
         }
-        let attrs = Window::default_attributes().with_title("Ztracený Ostrov").with_inner_size(LogicalSize::new(1280, 960));
+        let (w, h) = std::fs::read_to_string(state_dir().join("window.txt"))
+            .ok()
+            .and_then(|t| {
+                let (a, b) = t.trim().split_once('x')?;
+                Some((a.parse().ok()?, b.parse().ok()?))
+            })
+            .unwrap_or((1280u32, 960u32));
+        let attrs = Window::default_attributes().with_title("Ztracený Ostrov").with_inner_size(LogicalSize::new(w, h));
         let window = Arc::new(el.create_window(attrs).expect("window"));
         let size = window.inner_size();
         let surface = SurfaceTexture::new(size.width, size.height, window.clone());
@@ -226,6 +266,13 @@ impl ApplicationHandler for Runner {
             WindowEvent::Resized(s) => {
                 if let Some(p) = self.pixels.as_mut() {
                     let _ = p.resize_surface(s.width, s.height);
+                }
+                if let Some(w) = &self.window
+                    && w.fullscreen().is_none()
+                {
+                    let l = s.to_logical::<u32>(w.scale_factor());
+                    let _ = std::fs::create_dir_all(state_dir());
+                    let _ = std::fs::write(state_dir().join("window.txt"), format!("{}x{}", l.width, l.height));
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
@@ -249,6 +296,10 @@ impl ApplicationHandler for Runner {
                 }
             }
             WindowEvent::ModifiersChanged(m) => self.mods = m.state(),
+            WindowEvent::KeyboardInput {
+                event: KeyEvent { logical_key: Key::Named(NamedKey::Space), state: ElementState::Released, .. },
+                ..
+            } => self.send(Event::Highlight(false)),
             WindowEvent::KeyboardInput { event: KeyEvent { logical_key, state: ElementState::Pressed, text, .. }, .. } => {
                 let cmd = self.mods.super_key() || self.mods.alt_key();
                 let fullscreen = match &logical_key {
@@ -258,9 +309,7 @@ impl ApplicationHandler for Runner {
                     _ => false,
                 };
                 if fullscreen {
-                    if let Some(w) = &self.window {
-                        w.set_fullscreen(if w.fullscreen().is_some() { None } else { Some(Fullscreen::Borderless(None)) });
-                    }
+                    self.toggle_fullscreen();
                     return;
                 }
                 if self.mods.super_key() {
@@ -273,6 +322,10 @@ impl ApplicationHandler for Runner {
                 }
                 match &logical_key {
                     Key::Named(NamedKey::Escape) => self.send(Event::KeyDown(KEY_ESC)),
+                    Key::Named(NamedKey::F1) => self.send(Event::KeyDown(0x70)),
+                    Key::Named(NamedKey::F5) => self.send(Event::KeyDown(0x74)),
+                    Key::Named(NamedKey::F9) => self.send(Event::KeyDown(0x78)),
+                    Key::Named(NamedKey::Space) => self.send(Event::Highlight(true)),
                     Key::Named(NamedKey::Enter) => self.send(Event::KeyDown(KEY_ENTER)),
                     Key::Named(NamedKey::Backspace) => self.send(Event::KeyDown(KEY_BACK)),
                     Key::Named(NamedKey::ArrowLeft) => self.send(Event::KeyDown(0x25)),
@@ -344,6 +397,7 @@ fn main() -> Result<()> {
         pad_pos: (0.0, 0.0),
         last_frame: 0,
         mods: Default::default(),
+        scaling: ostrov_core::settings::Scaling::Sharp,
     };
     el.run_app(&mut r)?;
     Ok(())

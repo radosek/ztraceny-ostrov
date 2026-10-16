@@ -30,6 +30,8 @@ pub struct Character {
     pub visited: [bool; 20],
     pub tried: [bool; 20],
     pub busy: bool,
+    /// Port extra: double-clicked walk, twice the speed until it ends.
+    pub run: bool,
     pub room_id: i32,
     pub cycle: u8,
     pub talk_color: u8,
@@ -64,6 +66,7 @@ impl Default for Character {
             visited: [false; 20],
             tried: [false; 20],
             busy: false,
+            run: false,
             room_id: 0,
             cycle: 0,
             talk_color: 0,
@@ -173,6 +176,7 @@ impl Character {
 
     /// Stop 0x457c34.
     pub fn stop(&mut self) {
+        self.run = false;
         self.dest = (self.x, self.y);
         self.seg_start = self.dest;
         self.seg_end = self.dest;
@@ -329,6 +333,9 @@ impl Character {
         }
         if self.pos() != self.seg_end {
             let mut step = dround(self.base_step() as f64 / self.scale);
+            if self.run {
+                step *= 2;
+            }
             if self.skin == 0x0e {
                 step = step.max(3);
             }
@@ -361,6 +368,7 @@ impl Character {
             } else {
                 self.walk_frame = -1;
                 self.moving = false;
+                self.run = false;
                 self.just_stopped = 2;
                 if self.final_dir != NONE_DIR && self.final_dir != self.dir {
                     self.turn(self.final_dir);

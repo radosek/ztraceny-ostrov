@@ -38,6 +38,8 @@ pub struct Io {
     pub quit: bool,
     /// Current room id at the last present (for tools and tests).
     pub room: i32,
+    /// Port extras; the game writes `settings.cfg` when they change, the frontend reads them.
+    pub settings: crate::settings::Settings,
 }
 
 pub type IoRef = Rc<RefCell<Io>>;
@@ -131,6 +133,10 @@ pub struct Game {
     pub menu_loaded: bool,
     /// Bot/test mode: every blocking routine is skipped as if ESC was pressed.
     pub auto: bool,
+    /// Draw the hotspot overlay on the next present (main loop only).
+    pub show_hotspots: bool,
+    /// Short message shown on top of the game (quick save etc.) until the given time.
+    pub toast: Option<(Vec<u8>, u64)>,
 }
 
 /// 0x459714 playlists: [variant][set] = tracks.
@@ -203,6 +209,8 @@ impl Game {
             menu_file: None,
             menu_loaded: false,
             auto: false,
+            show_hotspots: false,
+            toast: None,
         };
         g.apply_volumes();
         g
@@ -248,6 +256,7 @@ impl Game {
         let mut io = self.io.borrow_mut();
         self.input = io.input.clone();
         io.input.clear();
+        io.input.now = self.clock.now();
         if io.quit || self.auto {
             self.input.key_down = true;
             self.input.key = crate::input::KEY_ESC;
@@ -274,6 +283,14 @@ impl Game {
         let Io { mixer, audio, frame, frames, .. } = &mut *io;
         mixer.render_until(now, audio);
         frame.clone_from(&self.scr.back);
+        if self.show_hotspots {
+            crate::extras::draw_hotspots(&self.rooms[self.room], frame);
+        }
+        if let Some((text, until)) = &self.toast {
+            if now < *until {
+                crate::extras::draw_toast(&self.a.font, &self.scr.lut, text, frame);
+            }
+        }
         *frames += 1;
         io.room = self.rooms.get(self.room).map_or(-1, |r| r.id);
     }

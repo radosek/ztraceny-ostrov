@@ -47,7 +47,8 @@ async fn main(mut g: Game) {
 
 impl App {
     pub fn new(assets: Rc<Assets>, cfg: Config, seed: u32, files: std::collections::HashMap<String, Vec<u8>>) -> Self {
-        let io: IoRef = Rc::new(RefCell::new(Io { files, ..Default::default() }));
+        let settings = files.get(crate::settings::FILE).map(|b| crate::settings::Settings::parse(&String::from_utf8_lossy(b))).unwrap_or_default();
+        let io: IoRef = Rc::new(RefCell::new(Io { files, settings, ..Default::default() }));
         let clock = Clock::default();
         let g = Game::new(assets, clock.clone(), io.clone(), cfg, seed);
         Self { io, exec: Executor::new(clock, main(g)) }

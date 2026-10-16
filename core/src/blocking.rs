@@ -352,7 +352,13 @@ impl Game {
             self.scr.clear(480);
             self.present();
         }
-        let y_off = if mode == 1 { 0x38 } else { 0 };
+        let y_off = if mode == 1 {
+            0x38
+        } else if self.io.borrow().settings.center_cutscenes {
+            30
+        } else {
+            0
+        };
         if stop_music {
             self.io.borrow_mut().mixer.set_paused(Channel::Music, true);
         }
