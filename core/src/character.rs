@@ -342,10 +342,10 @@ impl Character {
             let (sx, sy) = self.seg_start;
             let (ex, ey) = self.seg_end;
             if (ex - sx).abs() > (ey - sy).abs() {
-                self.x = advance(self.x, ex, if ex < sx { -step } else { step }, self.via_waypoint);
+                self.x = advance(self.x, ex, if ex < sx { -step } else { step }, self.via_waypoint && !self.run);
                 self.y = sy + (self.x - sx).abs() * (ey - sy) / (ex - sx).abs();
             } else {
-                self.y = advance(self.y, ey, if sy > ey { -step } else { step }, self.via_waypoint);
+                self.y = advance(self.y, ey, if sy > ey { -step } else { step }, self.via_waypoint && !self.run);
                 let d = (ey - sy).abs();
                 self.x = if d == 0 { sx } else { sx + (self.y - sy).abs() * (ex - sx) / d };
             }
@@ -421,7 +421,8 @@ impl Character {
 }
 
 /// Step `v` by signed `step` toward `to`; overshoot snaps to `to`, or with the waypoint tolerance
-/// steps back again.
+/// steps back again. Running (port extra) always snaps: its doubled steps can keep jumping past
+/// the tolerance window and the hero would rock in place.
 fn advance(v: i32, to: i32, step: i32, tolerant: bool) -> i32 {
     let n = v + step;
     let over = if step >= 0 { n > to } else { n < to };
