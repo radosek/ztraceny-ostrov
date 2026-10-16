@@ -103,12 +103,40 @@ fn load_files() -> HashMap<String, Vec<u8>> {
 #[derive(Clone, Default)]
 struct Queue(Arc<Mutex<VecDeque<i16>>>);
 
-struct Stream(Queue);
+/// Output rate; the game's 22050 Hz mix is converted with rubato's FFT resampler.
+const OUT_RATE: u32 = 48000;
+
+struct Stream {
+    queue: Queue,
+    resampler: rubato::Fft<f32>,
+    out: VecDeque<f32>,
+}
+
+impl Stream {
+    fn new(queue: Queue) -> Self {
+        let resampler = rubato::Fft::<f32>::new(RATE as usize, OUT_RATE as usize, 512, 1, rubato::FixedSync::Input)
+            .expect("resampler");
+        Self { queue, resampler, out: VecDeque::new() }
+    }
+}
 
 impl Iterator for Stream {
     type Item = f32;
     fn next(&mut self) -> Option<f32> {
-        Some(self.0.0.lock().unwrap().pop_front().map_or(0.0, |s| s as f32 / 32768.0))
+        use rubato::Resampler;
+        if self.out.is_empty() {
+            let n = self.resampler.input_frames_next();
+            let input: Vec<f32> = {
+                let mut q = self.queue.0.lock().unwrap();
+                (0..n).map(|_| q.pop_front().map_or(0.0, |s| s as f32 / 32768.0)).collect()
+            };
+            let adapter = audioadapter_buffers::direct::InterleavedSlice::new(&input, 1, n).expect("buffer");
+            match self.resampler.process(&adapter, None) {
+                Ok(o) => self.out.extend(o.take_data()),
+                Err(_) => self.out.extend(std::iter::repeat_n(0.0, n * 2)),
+            }
+        }
+        Some(self.out.pop_front().unwrap_or(0.0))
     }
 }
 
@@ -120,7 +148,7 @@ impl rodio::Source for Stream {
         NonZero::new(1).unwrap()
     }
     fn sample_rate(&self) -> rodio::SampleRate {
-        NonZero::new(RATE).unwrap()
+        NonZero::new(OUT_RATE).unwrap()
     }
     fn total_duration(&self) -> Option<std::time::Duration> {
         None
@@ -412,7 +440,7 @@ fn main() -> Result<()> {
     let audio = Queue::default();
     let sink = rodio::DeviceSinkBuilder::open_default_sink().ok();
     if let Some(s) = &sink {
-        s.mixer().add(Stream(audio.clone()));
+        s.mixer().add(Stream::new(audio.clone()));
     }
     let el = EventLoop::new()?;
     el.set_control_flow(ControlFlow::Poll);
