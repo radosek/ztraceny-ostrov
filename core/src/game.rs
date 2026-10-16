@@ -129,6 +129,8 @@ pub struct Game {
     pub menu_file: Option<String>,
     /// The last menu loaded a save.
     pub menu_loaded: bool,
+    /// Bot/test mode: every blocking routine is skipped as if ESC was pressed.
+    pub auto: bool,
 }
 
 /// 0x459714 playlists: [variant][set] = tracks.
@@ -200,6 +202,7 @@ impl Game {
             queued_say: None,
             menu_file: None,
             menu_loaded: false,
+            auto: false,
         };
         g.apply_volumes();
         g
@@ -245,7 +248,7 @@ impl Game {
         let mut io = self.io.borrow_mut();
         self.input = io.input.clone();
         io.input.clear();
-        if io.quit {
+        if io.quit || self.auto {
             self.input.key_down = true;
             self.input.key = crate::input::KEY_ESC;
         }
@@ -263,6 +266,9 @@ impl Game {
 
     /// Flip: mix audio up to now and publish the back buffer.
     pub fn present(&mut self) {
+        if self.auto {
+            return;
+        }
         let now = self.clock.now();
         let mut io = self.io.borrow_mut();
         let Io { mixer, audio, frame, frames, .. } = &mut *io;
@@ -303,6 +309,9 @@ impl Game {
     }
 
     pub fn play(&self, ch: Channel, a: Arc8, i: i32) {
+        if self.auto {
+            return;
+        }
         if let Some(s) = self.a.sound(a, i) {
             self.io.borrow_mut().mixer.play(ch, s, false);
         }

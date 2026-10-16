@@ -189,6 +189,13 @@ pub async fn cannon(g: &mut Game) -> bool {
         if g.quitting() {
             break false;
         }
+        if g.auto
+            && let Some((r, c)) = (0..ROWS).flat_map(|r| (0..COLS).map(move |c| (r, c))).find(|&(r, c)| (1..0x81).contains(&b.grid[r][c]))
+        {
+            g.input.mouse_x = X0 + CELL * c as i32 + 5;
+            g.input.mouse_y = Y0 + CELL * r as i32 + 5;
+            g.input.left = true;
+        }
         let (mx, my) = (g.input.mouse_x, g.input.mouse_y);
         let hover = cell(mx, my);
         g.cursor_hide();

@@ -88,20 +88,29 @@ impl Game {
         self.cur().regions.iter().rposition(|r| r.enabled && inside(&r.points, x, y))
     }
 
-    fn char_region_at(&self, x: i32, y: i32) -> Option<i32> {
-        let cr = self.room_index(CHAR_ROOM)?;
-        let regs = &self.rooms[cr].regions;
-        let c2 = &self.chars[CHAR2];
-        let hit = |i: usize, c: &Character| {
-            regs.get(i).is_some_and(|r| {
-                let pts: Vec<(i32, i32)> = r.points.iter().map(|&(px, py)| (px + c.x, py + c.y)).collect();
-                inside(&pts, x, y)
-            })
+    /// 0x4570a0: scaled bounding box of the current frame, inset 16/scale × 10/scale.
+    fn char_hit(&self, c: usize, px: i32, py: i32) -> bool {
+        let ch = &self.chars[c];
+        if ch.is_anim_npc || ch.moving {
+            return false;
+        }
+        let Some(img) = self.a.sprite_list(ch.skin as i32).ok().and_then(|l| l.get(ch.frame().0).cloned()) else {
+            return false;
         };
-        if c2.room_id == self.cur_id() && !c2.moving && hit(1, c2) {
+        let s = ch.scale;
+        let w = crate::geom::dround(img.width as f64 / s);
+        let h = crate::geom::dround(img.height as f64 / s);
+        let (left, top) = ((ch.x - w / 2) as f64, (ch.y - h) as f64);
+        let (mx, my) = (16.0 / s, 10.0 / s);
+        let (px, py) = (px as f64, py as f64);
+        left + mx <= px && px < left + w as f64 - mx && top + my <= py && py < top + h as f64 - my
+    }
+
+    fn char_region_at(&self, x: i32, y: i32) -> Option<i32> {
+        if self.chars[CHAR2].room_id == self.cur_id() && self.char_hit(CHAR2, x, y) {
             return Some(0x801);
         }
-        hit(0, &self.chars[HERO]).then_some(0x800)
+        self.char_hit(HERO, x, y).then_some(0x800)
     }
 
     /// Hover 0x45b7a0: cursor id and label.
@@ -161,8 +170,66 @@ impl Game {
         }
     }
 
+    /// Cursor of a region id as the click handler sees it.
+    fn region_cursor(&self, region: i32) -> u8 {
+        if region >= 0x800 {
+            let cr = self.room_index(CHAR_ROOM).unwrap_or(0);
+            self.rooms[cr].regions.get((region - 0x800) as usize).map_or(0, |g| g.cursor)
+        } else {
+            self.cur().regions.get(region as usize).map_or(0, |g| g.cursor)
+        }
+    }
+
+    /// Test/bot entry: use `region` (optionally with `item`) as a click would, then wait for
+    /// the walk and run the script to completion. Returns false if the click is ignored.
+    pub async fn act(&mut self, region: i32, item: i32) -> bool {
+        let cursor = self.region_cursor(region);
+        if cursor == 0 || (item != -1 && cursor == 7) {
+            return false;
+        }
+        if !self.flag(0x200) {
+            let id = self.cur_id();
+            let ok = cursor == 4
+                || (id == 0x200 && region == 1)
+                || (id == 0x204 && (region == 1 || region == 3))
+                || (id == 0x205 && region == 0);
+            if !ok {
+                return false;
+            }
+        }
+        let (x, y) = self.region_center(region);
+        if !self.start_region(region, (x, y), item) {
+            self.queued_say = None;
+            return false;
+        }
+        let mut guard = 0;
+        while self.pending != -1 {
+            self.frame();
+            self.wait_tick().await;
+            self.script_progress().await;
+            guard += 1;
+            if guard > 2000 {
+                for c in &mut self.chars {
+                    c.busy = false;
+                    c.stop();
+                }
+            }
+        }
+        true
+    }
+
+    fn region_center(&self, region: i32) -> (i32, i32) {
+        if region >= 0x800 {
+            let c = &self.chars[(region - 0x800) as usize];
+            return (c.x, c.y - 20);
+        }
+        let pts = &self.cur().regions[region as usize].points;
+        let n = pts.len().max(1) as i32;
+        (pts.iter().map(|p| p.0).sum::<i32>() / n, pts.iter().map(|p| p.1).sum::<i32>() / n)
+    }
+
     /// 0x45a8a8: once per tick, run the pending script when its walkers have arrived.
-    async fn script_progress(&mut self) {
+    pub async fn script_progress(&mut self) {
         if self.pending == -1 {
             return;
         }

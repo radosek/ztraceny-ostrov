@@ -1,0 +1,23 @@
+[package]
+name = "ostrov-probe"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Reference capture for Ostrov.exe under Wine: deterministic clock, scripted input, frame hashes"
+
+[lib]
+name = "ddraw"
+crate-type = ["cdylib"]
+
+[dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_SystemInformation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging", "Win32_System_SystemServices", "Win32_System_Diagnostics_Debug", "Win32_System_ProcessStatus"] }
+
+[profile.release]
+panic = "abort"
+opt-level = 2
+
+[profile.dev]
+panic = "abort"
+
+[workspace]
