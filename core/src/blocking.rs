@@ -292,6 +292,9 @@ impl Game {
     /// PlayPartial 0x45ac50.
     pub async fn play_partial(&mut self, idx: i32, delay: i32, mode: i32, fx: i32) {
         self.ctx = "partial";
+        if std::env::var_os("OSTROV_DEBUG").is_some() {
+            eprintln!("partial {idx} mode {mode} fx {fx} room {:#x} t={}", self.cur_id(), self.clock.now());
+        }
         let delay = if delay == 0 { DEFAULT_FRAME_MS } else { delay as u64 };
         if mode == 2 {
             self.delay(0, 1).await;
@@ -307,15 +310,11 @@ impl Game {
         // 0x45ad47..0x45ae93: hide hero and companion, then show the hero again only for
         // modes 3/4/10 and the companion only for modes <= 3 or 10. In other modes the anim
         // itself draws them.
-        // Port fix: the original also hides them when the anim never draws where they stand
-        // (e.g. another character talking), so they blink out; keep them in that case.
-        // An anim that shows the character itself repaints nearly all of their pixels.
-        let cov = flc::Coverage::of(d, &self.scr.bg, self.scr.lut);
         let keep = |g: &Game, c: usize| {
             g.chars[c].room_id == g.cur_id()
                 && match c {
-                    HERO => matches!(mode, 3 | 4 | 10) || g.char_coverage(c, &cov) < 0.3,
-                    CHAR2 => mode <= 3 || mode == 10 || g.char_coverage(c, &cov) < 0.3,
+                    HERO => matches!(mode, 3 | 4 | 10),
+                    CHAR2 => mode <= 3 || mode == 10,
                     _ => true,
                 }
         };

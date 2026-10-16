@@ -194,14 +194,17 @@ impl Game {
         let a = self.a.clone();
         let d = a.raw(s.archive, s.index);
         let mut sink = self.sink(back, bg, 0);
-        let _ = flc::decode_frame(d, &mut s.pos, false, &mut sink);
         if s.pos.frame >= s.header.frames as u32 {
-            s.pos = if s.header.loop_frame != 0 {
-                Pos { offset: s.header.loop_frame, frame: 1 }
-            } else {
-                s.header.start()
-            };
+            // Past the last frame: a looping file has a ring frame that turns the last image
+            // back into the first; play it, then continue from frame 1 (0x44f744 / 0x44f4b0).
+            if s.header.loop_frame != 0 {
+                let _ = flc::decode_frame(d, &mut s.pos, false, &mut sink);
+                s.pos = Pos { offset: s.header.loop_frame, frame: 1 };
+                return;
+            }
+            s.pos = s.header.start();
         }
+        let _ = flc::decode_frame(d, &mut s.pos, false, &mut sink);
     }
 
     /// Re-decode from the start up to the current frame onto the background (0x44fc10).
@@ -340,33 +343,6 @@ impl Game {
         let img = self.char_sprite(c)?;
         let (w, h) = (dround(img.width as f64 / ch.scale), dround(img.height as f64 / ch.scale));
         Some((ch.x - w / 2, ch.y - h, ch.x - w / 2 + w, ch.y))
-    }
-
-    /// Share (0..1) of a character's visible pixels that an anim repaints at some point.
-    pub(crate) fn char_coverage(&self, c: usize, cov: &crate::flc::Coverage) -> f64 {
-        let ch = &self.chars[c];
-        if ch.is_anim_npc || ch.x == -255 {
-            return 0.0;
-        }
-        let Some(img) = self.char_sprite(c) else { return 0.0 };
-        let s = ch.scale;
-        let (w, h) = (dround(img.width as f64 / s), dround(img.height as f64 / s));
-        let (x0, y0) = (ch.x - w / 2, ch.y - h);
-        let (mut total, mut hit) = (0u32, 0u32);
-        for dy in 0..h {
-            for dx in 0..w {
-                let sx = ((dx as f64 * s) as i32).min(img.width as i32 - 1);
-                let sy = ((dy as f64 * s) as i32).min(img.height as i32 - 1);
-                if img.pixels[(sy * img.width as i32 + sx) as usize] == img.transparent {
-                    continue;
-                }
-                total += 1;
-                if cov.covered(x0 + dx, y0 + dy) {
-                    hit += 1;
-                }
-            }
-        }
-        if total == 0 { 0.0 } else { hit as f64 / total as f64 }
     }
 
     /// Hide 0x457080.

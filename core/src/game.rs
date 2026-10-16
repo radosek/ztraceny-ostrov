@@ -751,7 +751,8 @@ impl Game {
             31 => self.chars[HERO].items.clear(),
             32 => self.static_walk(a[0], a[1], a[2], a[3]).await,
             33 => self.static_turn(a[0], a[1]).await,
-            34 => self.play_partial(a[0], a[1], a[2], a[3]).await,
+            // PlayPartialX anim delay fx mode (the data reads e.g. `580 0 0 3`: mode 3).
+            34 => self.play_partial(a[0], a[1], a[3], a[2]).await,
             35 => self.default_speaker = a[0],
             36 => self.special_fx(a[0]).await,
             37 => self.delay(a[0], 0).await,
