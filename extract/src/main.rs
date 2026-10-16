@@ -7,6 +7,7 @@ use ostrov_core::{
     audio,
     flc::{Flc, PLAYFIELD_W},
     gfx::{self, Image, Kind, Palette, SCENE_PALETTE_FIRST},
+    reader::cp1250,
     text,
 };
 use std::{
@@ -94,7 +95,7 @@ fn dump_archive(name: &str, src: &Path, out: &Path, ui: &Palette, max_frames: us
                 Kind::Palette => Ok(fs::write(dir.join(format!("{i:04}.pal")), e)?),
                 Kind::Other => {
                     if name == "Data.dat" && (32..=34).contains(&i) {
-                        let s = text::string_list(e).context("string list")?;
+                        let s: Vec<String> = text::string_list(e)?.iter().map(|b| cp1250(b)).collect();
                         fs::write(dir.join(format!("{i:04}.txt")), s.join("\n"))?;
                     }
                     Ok(fs::write(dir.join(format!("{i:04}.bin")), e)?)
