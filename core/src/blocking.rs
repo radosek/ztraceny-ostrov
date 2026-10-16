@@ -279,8 +279,7 @@ impl Game {
         while self.chars[c].moving {
             self.music_tick();
             self.frame();
-            self.present();
-            self.wait_tick().await;
+            self.present_and_wait().await;
             if self.input.skip() {
                 self.hide_chars();
                 let r = self.room_index(self.chars[c].room_id).map(|i| self.rooms[i].clone());

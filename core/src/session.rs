@@ -581,9 +581,8 @@ impl Game {
                     crate::settings::Hotspots::HoldSpace => self.input.highlight,
                     crate::settings::Hotspots::Off => false,
                 };
-            self.present();
+            self.present_and_wait().await;
             self.show_hotspots = false;
-            self.wait_tick().await;
             if self.cur_id() != last_room {
                 last_room = self.cur_id();
                 if self.io.borrow().settings.autosave_rooms {

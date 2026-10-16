@@ -150,6 +150,8 @@ pub struct Game {
     /// Port extra: saves taken just before the player's last actions, with what they did, for
     /// F12 bug reports.
     pub recent: std::collections::VecDeque<(String, Vec<u8>)>,
+    /// Character positions at the start of the last tick (smooth motion interpolates from them).
+    pub prev_pos: Vec<(i32, i32)>,
     /// Short message shown on top of the game (quick save etc.) until the given time.
     pub toast: Option<(Vec<u8>, u64)>,
 }
@@ -232,6 +234,7 @@ impl Game {
             instant: false,
             hint_mark: None,
             recent: Default::default(),
+            prev_pos: vec![(0, 0); 40],
             toast: None,
         };
         g.apply_volumes();
@@ -319,11 +322,17 @@ impl Game {
                 eprintln!("hero invisible room {:#x} t={} ctx={} talking={}", self.cur_id(), self.clock.now(), self.ctx, self.chars.iter().any(|c| c.talking));
             }
         }
+        let back = self.scr.back.clone();
+        self.publish(back);
+    }
+
+    /// Hand a finished frame (plus port overlays) to the frontend and mix audio up to now.
+    pub fn publish(&mut self, buf: Vec<u16>) {
         let now = self.clock.now();
         let mut io = self.io.borrow_mut();
         let Io { mixer, audio, frame, frames, .. } = &mut *io;
         mixer.render_until(now, audio);
-        frame.clone_from(&self.scr.back);
+        *frame = buf;
         if self.show_hotspots {
             crate::extras::draw_hotspots(&self.rooms[self.room], frame);
         }

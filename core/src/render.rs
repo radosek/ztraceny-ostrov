@@ -415,6 +415,9 @@ impl Game {
 
     /// 0x45c010 Frame: erase characters, update them, back anims, draw characters.
     pub fn frame(&mut self) {
+        for c in 0..40 {
+            self.prev_pos[c] = (self.chars[c].x, self.chars[c].y);
+        }
         self.hide_chars();
         for c in 0..40 {
             let r = self.room_index(self.chars[c].room_id).map(|i| self.rooms[i].clone());
@@ -423,6 +426,82 @@ impl Game {
         }
         self.back_anims();
         self.show_chars();
+    }
+
+    /// Smooth motion (port extra): the current screen with every drawn character moved back to
+    /// `prev + (cur − prev)·alpha`. The game logic still steps at 70 ms; only display lags a tick.
+    pub(crate) fn interpolated(&mut self, alpha: f64) -> Vec<u16> {
+        let orig = self.scr.back.clone();
+        let cursor = self.cursor.save.clone();
+        if let Some(r) = &cursor {
+            self.scr.put_rect(r);
+        }
+        if let Some(r) = self.hover.save.clone() {
+            self.scr.put_rect(&r);
+        }
+        let order = self.order();
+        for &c in order.iter().rev() {
+            if let Some(r) = self.char_saves[c].clone() {
+                self.scr.put_rect(&r);
+            }
+        }
+        for &c in &order {
+            if self.char_saves[c].is_none() {
+                continue;
+            }
+            let (px, py) = self.prev_pos[c];
+            let ch = &self.chars[c];
+            // A jump (room change, teleport) is not interpolated.
+            let far = (ch.x - px).abs() > 60 || (ch.y - py).abs() > 60;
+            let (x, y) = if far {
+                (ch.x, ch.y)
+            } else {
+                (px + ((ch.x - px) as f64 * alpha).round() as i32, py + ((ch.y - py) as f64 * alpha).round() as i32)
+            };
+            let Some(img) = self.char_sprite(c) else { continue };
+            let s = self.chars[c].scale;
+            let skin = self.skin_of(c);
+            let (_, flip) = self.chars[c].frame();
+            let wr = dround(img.width as f64 / s);
+            let hr = dround(img.height as f64 / s);
+            let yb = if skin == 0x0e { y - dround((self.chars[c].cycle as u32 / 3) as f64 / s) } else { y };
+            let depth = self.depth(y);
+            self.scr.sprite(&img, x - wr / 2, yb - hr, s, flip, depth, true);
+        }
+        if self.hover.visible {
+            let (l, x, y, col) = (self.hover.layout.clone(), self.hover.x, self.hover.y, self.hover.color);
+            text_render::draw(&mut self.scr, &self.a.font, &l, x, y, col);
+        }
+        if cursor.is_some()
+            && let Some(img) = self.cursor_image()
+        {
+            let (x, y) = (self.input.mouse_x - img.width as i32 / 2, self.input.mouse_y - img.height as i32 / 2);
+            self.scr.blit(Target::Back, &img, x, y, true, H);
+        }
+        std::mem::replace(&mut self.scr.back, orig)
+    }
+
+    pub(crate) fn anyone_moved(&self) -> bool {
+        (0..40).any(|c| self.char_saves[c].is_some() && (self.chars[c].x, self.chars[c].y) != self.prev_pos[c])
+    }
+
+    /// Present this tick and wait for the next one, showing in-between frames when someone walks.
+    pub async fn present_and_wait(&mut self) {
+        const SUB: u64 = 4;
+        if !self.io.borrow().settings.smooth_motion || self.auto || self.instant || !self.anyone_moved() {
+            self.present();
+            self.wait_tick().await;
+            return;
+        }
+        let start = self.base;
+        for k in 0..SUB {
+            let f = self.interpolated(k as f64 / SUB as f64);
+            self.publish(f);
+            if k + 1 < SUB {
+                self.clock.until(start + crate::game::TICK_MS * (k + 1) / SUB).await;
+            }
+        }
+        self.wait_tick().await;
     }
 
     // ---- tooltips, cursor, panel --------------------------------------------------------
