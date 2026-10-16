@@ -18,7 +18,9 @@ Anim 9412 frames, Partial 12075 frames. Chunks used: standard set only.
 `Logo.avi`, `Titulky.avi`: Cinepak (`cvid`) 640×480 @ 15 fps, no audio stream.
 
 ## Not referenced by Ostrov.exe
-`Anim2.dat` — the exe's string table has no reference to it.
+`Anim2.dat` — never opened by the exe. Raw 4 KB-sector disk dump containing byte-identical copies of
+Anim/Backgnd/Data/Fx/Fx2/Music/Partial/Speech.dat, both AVIs and Install.dat (Anim.dat at offset 1,228,800),
+plus a different Ostrov.exe build at 375,353,344 (first 4 KB identical). Nothing unique; ignored.
 
 ## Sound (Music, Speech, FX, FX2)
 Header (parsed at 0x45552c): `u16 sample_rate` (22050), `i32 data_size`, `i32 pcm_size`, `u8 flags` (bit0 stereo, bit1 16-bit; always 0x02), `u8 compression` = `'c'`.
