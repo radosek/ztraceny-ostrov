@@ -15,6 +15,8 @@ pub enum Event {
     Char(u8),
     /// Hotspot highlight key held (port extra, Space by default).
     Highlight(bool),
+    /// Controller: jump the pointer to the next (+1) / previous (−1) hotspot (port extra).
+    CycleHotspot(i8),
 }
 
 #[derive(Clone, Default, Debug)]
@@ -31,6 +33,7 @@ pub struct Input {
     pub chars: Vec<u8>,
     /// Port extras: highlight key held, and a double click on the last left press.
     pub highlight: bool,
+    pub cycle: i8,
     pub double: bool,
     last_click: Option<(u64, i32, i32)>,
     pub now: u64,
@@ -70,6 +73,7 @@ impl Input {
             }
             Event::Char(c) => self.chars.push(c),
             Event::Highlight(on) => self.highlight = on,
+            Event::CycleHotspot(d) => self.cycle = d,
         }
     }
 
@@ -83,6 +87,7 @@ impl Input {
         self.key_down = false;
         self.chars.clear();
         self.double = false;
+        self.cycle = 0;
     }
 
     pub fn esc(&self) -> bool {

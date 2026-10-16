@@ -15,6 +15,6 @@ if command -v wasm-opt >/dev/null; then
     -o dist/lib/ostrov_web_bg.wasm dist/lib/ostrov_web_bg.wasm
 fi
 
-npm ci --no-audit --no-fund
-npx esbuild src/player.js --bundle --format=esm --minify --outfile=dist/player.js
+bun install --frozen-lockfile
+bun build src/player.js --format=esm --minify --target=browser --outfile=dist/player.js
 echo "Player bundle in web/dist (served at /ztraceny-ostrov/ on the site)"

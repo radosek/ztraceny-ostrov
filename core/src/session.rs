@@ -501,6 +501,34 @@ impl Game {
         io.writes.push((path.to_string(), data));
     }
 
+    /// Controller (port extra): move the pointer to the next hotspot, left to right.
+    fn cycle_hotspot(&mut self, dir: i8) {
+        let mut spots: Vec<(i32, i32)> = self
+            .cur()
+            .regions
+            .iter()
+            .filter(|r| r.enabled && r.cursor != 0 && r.points.len() > 2)
+            .map(|r| {
+                let n = r.points.len() as i32;
+                (r.points.iter().map(|p| p.0).sum::<i32>() / n, r.points.iter().map(|p| p.1).sum::<i32>() / n)
+            })
+            .filter(|&(_, y)| y < VIEW_H as i32)
+            .collect();
+        if spots.is_empty() {
+            return;
+        }
+        spots.sort();
+        let (mx, my) = (self.input.mouse_x, self.input.mouse_y);
+        let cur = spots.iter().position(|&(x, y)| (x - mx).abs() < 3 && (y - my).abs() < 3);
+        let next = match (cur, dir > 0) {
+            (Some(i), true) => (i + 1) % spots.len(),
+            (Some(i), false) => (i + spots.len() - 1) % spots.len(),
+            (None, true) => spots.iter().position(|&(x, _)| x > mx).unwrap_or(0),
+            (None, false) => spots.iter().rposition(|&(x, _)| x < mx).unwrap_or(spots.len() - 1),
+        };
+        self.io.borrow_mut().warp = Some(spots[next]);
+    }
+
     /// `H` (port extra): search for the next useful action and point at it.
     pub async fn show_hint(&mut self) {
         let Some(a) = self.hint(600).await else {
@@ -670,6 +698,8 @@ impl Game {
                     }
                 }
                 panel_hover = -2;
+            } else if self.input.cycle != 0 {
+                self.cycle_hotspot(self.input.cycle);
             } else if self.input.key_down && self.input.key == b'H' as u16 {
                 self.hide_overlays();
                 self.show_hint().await;

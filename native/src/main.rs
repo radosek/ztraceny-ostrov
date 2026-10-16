@@ -230,6 +230,12 @@ impl Runner {
                 EventType::ButtonPressed(Button::East | Button::LeftTrigger2, _) => events.push(Event::MouseDown { x, y, right: true }),
                 EventType::ButtonPressed(Button::Start, _) => events.push(Event::KeyDown(KEY_ESC)),
                 EventType::ButtonPressed(Button::North, _) => events.push(Event::KeyDown(b'I' as u16)),
+                EventType::ButtonPressed(Button::West, _) => events.push(Event::KeyDown(b'H' as u16)),
+                EventType::ButtonPressed(Button::Select, _) => events.push(Event::KeyDown(0x70)),
+                EventType::ButtonPressed(Button::RightTrigger | Button::DPadRight, _) => events.push(Event::CycleHotspot(1)),
+                EventType::ButtonPressed(Button::LeftTrigger | Button::DPadLeft, _) => events.push(Event::CycleHotspot(-1)),
+                EventType::ButtonPressed(Button::DPadUp, _) => events.push(Event::Highlight(true)),
+                EventType::ButtonReleased(Button::DPadUp, _) => events.push(Event::Highlight(false)),
                 EventType::AxisChanged(gilrs::Axis::LeftStickX, v, _) => self.pad_pos.0 = v,
                 EventType::AxisChanged(gilrs::Axis::LeftStickY, v, _) => self.pad_pos.1 = v,
                 _ => {}
@@ -248,6 +254,11 @@ impl Runner {
 
     fn step(&mut self) {
         self.pump_gamepad();
+        let warp = self.app.io.borrow_mut().warp.take();
+        if let Some((x, y)) = warp {
+            self.mouse = (x, y);
+            self.app.io.borrow_mut().input.apply(Event::MouseMove(x, y));
+        }
         let now = self.start.elapsed().as_millis() as u64;
         self.app.run_until(now);
         self.persist();

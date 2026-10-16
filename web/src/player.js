@@ -134,7 +134,7 @@ const fromBase64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 /** Windows virtual key for a KeyboardEvent, or 0 if the game doesn't read it. */
 function vk(e) {
-  const named = { Escape: 0x1b, Enter: 0x0d, Backspace: 8, ArrowLeft: 0x25, ArrowRight: 0x27, ArrowUp: 0x26, ArrowDown: 0x28, Home: 0x24, End: 0x23, Delete: 0x2e, " ": 0x20, F1: 0x70, F5: 0x74, F9: 0x78 };
+  const named = { Escape: 0x1b, Enter: 0x0d, Backspace: 8, ArrowLeft: 0x25, ArrowRight: 0x27, ArrowUp: 0x26, ArrowDown: 0x28, Home: 0x24, End: 0x23, Delete: 0x2e, " ": 0x20, F1: 0x70, F5: 0x74, F9: 0x78, F12: 0x7b };
   if (named[e.key]) return named[e.key];
   if (/^Key[A-Z]$/.test(e.code)) return e.code.charCodeAt(3);
   if (/^Digit[0-9]$/.test(e.code)) return e.code.charCodeAt(5);
@@ -333,6 +333,8 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     last = now;
     pollPad();
     game.tick(clock);
+    const warp = game.takeWarp();
+    if (warp) mouse = { x: warp[0], y: warp[1] };
     if (game.frame(image.data)) ctx.putImageData(image, 0, 0);
     const mode = game.scaling();
     if (mode !== lastScaling) {
@@ -396,7 +398,26 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     c.setPointerCapture?.(e.pointerId);
     mouse = toGame(e);
     game?.mouseMove(mouse.x, mouse.y);
+    if (e.pointerType === "touch") {
+      // Touch: tap = left click, hold half a second = right click (inventory / drop item).
+      clearTimeout(longPress);
+      const at = mouse;
+      longPress = setTimeout(() => {
+        longPress = 0;
+        game?.mouseDown(at.x, at.y, true);
+        game?.mouseUp(true);
+      }, 500);
+      return;
+    }
     game?.mouseDown(mouse.x, mouse.y, e.button === 2);
+  });
+  let longPress = 0;
+  c.addEventListener("pointerup", (e) => {
+    if (e.pointerType !== "touch" || !longPress) return;
+    clearTimeout(longPress);
+    longPress = 0;
+    game?.mouseDown(mouse.x, mouse.y, false);
+    game?.mouseUp(false);
   });
   c.addEventListener("pointerup", (e) => {
     if (e.button !== 0 && e.button !== 2) return;
@@ -466,11 +487,7 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     pad.last = now;
     const gp = [...(navigator.getGamepads?.() ?? [])].find(Boolean);
     if (!gp || !game) return;
-    let [sx, sy] = [gp.axes[0] ?? 0, gp.axes[1] ?? 0];
-    if (gp.buttons[14]?.pressed) sx = -1;
-    if (gp.buttons[15]?.pressed) sx = 1;
-    if (gp.buttons[12]?.pressed) sy = -1;
-    if (gp.buttons[13]?.pressed) sy = 1;
+    const [sx, sy] = [gp.axes[0] ?? 0, gp.axes[1] ?? 0];
     if (Math.hypot(sx, sy) > 0.18) {
       mouse = {
         x: Math.max(0, Math.min(W - 1, Math.round(mouse.x + sx * 500 * dt))),
@@ -485,6 +502,12 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     edge("b", Boolean(gp.buttons[1]?.pressed || gp.buttons[6]?.pressed), () => game.mouseDown(mouse.x, mouse.y, true), () => game.mouseUp(true));
     edge("start", Boolean(gp.buttons[9]?.pressed), () => game.keyDown(0x1b));
     edge("y", Boolean(gp.buttons[3]?.pressed), () => game.keyDown(0x49));
+    edge("x", Boolean(gp.buttons[2]?.pressed), () => game.keyDown(0x48));
+    edge("select", Boolean(gp.buttons[8]?.pressed), () => game.keyDown(0x70));
+    // Bumpers and d-pad left/right jump between hotspots; d-pad up shows them all.
+    edge("next", Boolean(gp.buttons[5]?.pressed || gp.buttons[15]?.pressed), () => game.cycleHotspot(1));
+    edge("prev", Boolean(gp.buttons[4]?.pressed || gp.buttons[14]?.pressed), () => game.cycleHotspot(-1));
+    edge("up", Boolean(gp.buttons[12]?.pressed), () => game.highlight(true), () => game.highlight(false));
   }
 
   render();

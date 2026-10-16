@@ -109,6 +109,20 @@ impl Game {
         }
     }
 
+    /// Controller: jump the pointer to the next/previous hotspot.
+    #[wasm_bindgen(js_name = cycleHotspot)]
+    pub fn cycle_hotspot(&self, dir: i8) {
+        self.send(Event::CycleHotspot(dir));
+    }
+
+    /// Pointer position the game moved to (hotspot cycling), applied by the page.
+    #[wasm_bindgen(js_name = takeWarp)]
+    pub fn take_warp(&self) -> Option<Vec<i32>> {
+        let w = self.app.io.borrow_mut().warp.take()?;
+        self.send(Event::MouseMove(w.0, w.1));
+        Some(vec![w.0, w.1])
+    }
+
     /// Hotspot highlight key held (Space).
     pub fn highlight(&self, on: bool) {
         self.send(Event::Highlight(on));

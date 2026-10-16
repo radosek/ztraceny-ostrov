@@ -52,7 +52,12 @@ fn main() {
             "k" => io.input.apply(Event::KeyDown(v[0] as u16)),
             "q" => io.quit = true,
             "h" => io.input.apply(Event::Highlight(v[0] != 0)),
+            "n" => io.input.apply(Event::CycleHotspot(v[0] as i8)),
             _ => {}
+        }
+        if let Some((x, y)) = io.warp.take() {
+            eprintln!("t={t} warp {x},{y}");
+            io.input.apply(Event::MouseMove(x, y));
         }
         for (n, d) in io.writes.drain(..) {
             eprintln!("t={t} wrote {n} ({} bytes)", d.len());

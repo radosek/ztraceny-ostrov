@@ -40,6 +40,9 @@ pub struct Io {
     pub room: i32,
     /// Port extras; the game writes `settings.cfg` when they change, the frontend reads them.
     pub settings: crate::settings::Settings,
+    /// Pointer position the game wants (controller hotspot cycling); the frontend moves its
+    /// cursor there and clears it.
+    pub warp: Option<(i32, i32)>,
 }
 
 pub type IoRef = Rc<RefCell<Io>>;
