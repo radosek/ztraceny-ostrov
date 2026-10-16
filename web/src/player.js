@@ -395,7 +395,9 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     e.preventDefault();
     c.focus();
     startAudio();
-    c.setPointerCapture?.(e.pointerId);
+    try {
+      c.setPointerCapture?.(e.pointerId);
+    } catch {}
     mouse = toGame(e);
     game?.mouseMove(mouse.x, mouse.y);
     if (e.pointerType === "touch") {
