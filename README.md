@@ -1,8 +1,49 @@
 # Ztracený Ostrov — native
 
-Rust port of the Czech adventure game *Ztracený Ostrov* (2000) for native platforms and the browser.
+A Rust port of the Czech adventure game *Ztracený Ostrov* (2000) for macOS, Windows, Linux and
+the browser. The original is a Delphi/DirectX 6 program that no longer runs on current Windows;
+this reimplements its engine from the shipped executable and runs the game's own data and
+scripts unchanged.
+
 No game data is included. Point it at your own copy.
 
-- `core/` — formats and engine core (shared by native and wasm)
-- `extract/` — dumps the game archives to PNG/WAV for inspection
-- `docs/FORMATS.md` — file format notes
+## Run
+
+```sh
+cargo run --release -p ztraceny-ostrov -- "/path/to/Ztracený Ostrov"   # folder with Data.dat
+```
+
+Without an argument it uses the last folder, then the folder next to the binary, then asks.
+Saves and settings live in the per-user data folder (`ztraceny-ostrov/`).
+
+| Key | |
+|---|---|
+| mouse | as in the original: left = act, right = inventory / drop held item |
+| `I` | inventory |
+| `Esc` | skip speech, animation or video |
+| `F11` | fullscreen |
+| controller | stick = pointer, A = click, B = right click, Y = inventory, Start = Esc |
+
+## Layout
+
+- `core/` — engine: archives, FLC/RLE/GIF/ADPCM/Cinepak decoding, script VM, characters,
+  rendering, UI, saves. Deterministic: driven by a virtual clock.
+- `native/` — desktop runner (winit, pixels/wgpu, rodio, gilrs).
+- `web/` — browser player for boxb.org (`web/build.sh` → `web/dist`).
+- `extract/` — dumps the archives to PNG/WAV.
+- `tools/probe/` — `ddraw.dll` for capturing reference frames from the original under Wine.
+- `docs/` — file formats and the reverse-engineered engine spec.
+
+## Testing
+
+```sh
+cargo test -p ostrov-core
+cargo run --release -p ostrov-core --example headless -- <game-dir> <out-dir> "t=20000,c=20400:288:286,t=26000"
+cargo run --release -p ostrov-core --example autoplay -- <game-dir> 5000   # exploration bot
+```
+
+## Building releases
+
+- macOS universal app: `./scripts/package-macos.sh`
+- Linux AppImage: `./scripts/package-linux.sh`
+- CI (`.github/workflows/release.yml`) builds all three plus the web bundle; tags `v*` publish a release.

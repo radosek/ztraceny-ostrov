@@ -130,3 +130,30 @@ pub fn draw(scr: &mut Screen, font: &[u8], l: &Layout, left: i32, top: i32, colo
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wraps_after_forty_columns_keeping_the_space() {
+        let s = b"aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj";
+        let l = wrap(s, 40);
+        assert_eq!(l.len(), 2);
+        assert!(l[0].ends_with(b" "));
+        assert_eq!(l.concat(), s.to_vec());
+    }
+
+    #[test]
+    fn short_text_is_one_line() {
+        assert_eq!(wrap(b"Zasah.", 40), vec![b"Zasah.".to_vec()]);
+    }
+
+    #[test]
+    fn accents_map_after_ascii() {
+        assert_eq!(glyph(b' '), 0);
+        assert_eq!(glyph(0xc1), 0x60);
+        assert_eq!(glyph(0xf9), 0x60 + 46);
+        assert_eq!(glyph(0x84), 2);
+    }
+}

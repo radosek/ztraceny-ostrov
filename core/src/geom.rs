@@ -80,3 +80,33 @@ pub fn angle(x1: i32, y1: i32, x2: i32, y2: i32) -> i32 {
     };
     (dround(a) + 360) % 360
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bankers_rounding() {
+        assert_eq!(dround(2.5), 2);
+        assert_eq!(dround(3.5), 4);
+        assert_eq!(dround(-0.5), 0);
+    }
+
+    #[test]
+    fn square_edges() {
+        let sq = [(0, 0), (10, 0), (10, 10), (0, 10)];
+        assert!(inside(&sq, 0, 0));
+        assert!(inside(&sq, 9, 9));
+        assert!(!inside(&sq, 10, 5));
+        assert!(!inside(&sq, 5, 10));
+    }
+
+    #[test]
+    fn angles() {
+        assert_eq!(angle(0, 0, 10, 0), 0);
+        assert_eq!(angle(0, 0, 0, -10), 90);
+        assert_eq!(angle(0, 0, -10, 0), 180);
+        assert_eq!(angle(0, 0, 0, 10), 270);
+        assert_eq!(angle(0, 0, 10, -10), 45);
+    }
+}

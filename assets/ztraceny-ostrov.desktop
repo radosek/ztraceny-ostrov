@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Ztracený Ostrov
+Comment=Czech adventure game (2000), native runner
+Exec=ostrov %f
+Icon=ztraceny-ostrov
+Categories=Game;AdventureGame;
