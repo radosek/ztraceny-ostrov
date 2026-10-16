@@ -41,6 +41,26 @@ async fn run(mut g: Game, steps: Vec<(i32, i32, i32)>, out: std::path::PathBuf, 
         }
         g.frame();
         g.present();
+        if std::env::var_os("REPLAY_CHECK").is_some() {
+            // Rebuild the room background from the data and compare with what the game has.
+            let before = g.scr.bg.clone();
+            g.redraw_room();
+            let diff: Vec<usize> = (0..640 * 420).filter(|&i| before[i] != g.scr.bg[i]).collect();
+            if diff.len() > 50 {
+                let (mut x0, mut y0, mut x1, mut y1) = (640, 420, 0, 0);
+                for &i in &diff {
+                    let (x, y) = (i % 640, i / 640);
+                    x0 = x0.min(x);
+                    y0 = y0.min(y);
+                    x1 = x1.max(x);
+                    y1 = y1.max(y);
+                }
+                eprintln!("step {n} {room:#x}:{r}:{it} -> room {:#x}: {} px differ in ({x0},{y0})-({x1},{y1})", g.cur_id(), diff.len());
+                let mut io = g.io.borrow_mut();
+                io.frame.clone_from(&before);
+                dump(&io, &out.join(format!("bad{n:03}.png")));
+            }
+        }
         if n >= first {
             dump(&g.io.borrow(), &out.join(format!("step{n:03}_{room:x}_{r}_{it}.png")));
         }
