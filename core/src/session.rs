@@ -140,8 +140,38 @@ impl Game {
         if inside(&self.cur().walk.points, x, y) { (2, None) } else { (5, None) }
     }
 
+    /// Remember the state before a player action (for F12 reports).
+    fn record(&mut self, what: String) {
+        if self.auto {
+            return;
+        }
+        let thumb = vec![0u16; crate::save::THUMB_W * crate::save::THUMB_H];
+        let data = self.save(b"before", &thumb);
+        self.recent.push_back((what, data));
+        while self.recent.len() > 10 {
+            self.recent.pop_front();
+        }
+    }
+
+    /// F12: write the recent saves, the action log and the screen to `Bugs/<time>/`.
+    fn bug_report(&mut self) {
+        let dir = format!("Bugs/{}", self.clock.now());
+        let mut log = String::new();
+        let recent: Vec<_> = self.recent.iter().cloned().collect();
+        let mut io = self.io.borrow_mut();
+        for (i, (what, data)) in recent.iter().enumerate() {
+            log.push_str(&format!("{i}: {what}\n"));
+            io.writes.push((format!("{dir}/before{i}.sav"), data.clone()));
+        }
+        log.push_str(&format!("now: room {:#x}\n", self.rooms[self.room].id));
+        io.writes.push((format!("{dir}/actions.txt"), log.into_bytes()));
+        let screen: Vec<u8> = io.frame.iter().flat_map(|p| p.to_le_bytes()).collect();
+        io.writes.push((format!("{dir}/screen.rgb565"), screen));
+    }
+
     /// 0x45a204.
     async fn click(&mut self, x: i32, y: i32, walk_only: bool, item: i32) {
+        self.record(format!("click room {:#x} at {x},{y} item {item}", self.cur_id()));
         let region = self.region_at(x, y).map(|r| r as i32).or_else(|| self.char_region_at(x, y));
         let cursor = match region {
             Some(r) if r >= 0x800 => {
@@ -380,6 +410,7 @@ impl Game {
     }
 
     pub async fn combine(&mut self, a: i32, b: i32) -> bool {
+        self.record(format!("combine {a} + {b} in room {:#x}", self.cur_id()));
         const COMBOS: [(i32, i32, u8, bool, Option<i32>); 6] = [
             (0x18, 0x0b, 0x0c, true, None),
             (0x0f, 0x0d, 0x0e, false, None),
@@ -613,6 +644,10 @@ impl Game {
                     }
                 }
                 panel_hover = -2;
+            } else if self.input.key_down && self.input.key == 0x7b {
+                self.bug_report();
+                let m = self.ui("Hlášení chyby uloženo (složka Bugs)", "Bug report saved (Bugs folder)");
+                self.toast(&m);
             } else if self.input.key_down && self.input.key == b'H' as u16 {
                 self.hide_overlays();
                 self.show_hint().await;

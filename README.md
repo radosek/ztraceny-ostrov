@@ -22,6 +22,8 @@ Saves and settings live in the per-user data folder (`ztraceny-ostrov/`). The ga
 | `I` | inventory |
 | hold `Space` | outline every hotspot (F1: always / off) |
 | `F5` / `F9` | quick save / quick load |
+| `F12` | bug report: saves from before the last 10 actions, action log, screenshot → `Bugs/` |
+| `H` | hint: outlines the next useful hotspot |
 | `F1` | settings: volumes, subtitles, hotspots, fullscreen, scaling, centred cut-scenes, autosave on room change |
 | double-click | run there |
 | `Esc` | skip speech, animation or video |

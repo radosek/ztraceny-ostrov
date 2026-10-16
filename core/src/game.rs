@@ -147,6 +147,9 @@ pub struct Game {
     pub instant: bool,
     /// Hotspot to outline for a hint, until the given time.
     pub hint_mark: Option<(i32, i32, u64)>,
+    /// Port extra: saves taken just before the player's last actions, with what they did, for
+    /// F12 bug reports.
+    pub recent: std::collections::VecDeque<(String, Vec<u8>)>,
     /// Short message shown on top of the game (quick save etc.) until the given time.
     pub toast: Option<(Vec<u8>, u64)>,
 }
@@ -228,6 +231,7 @@ impl Game {
             lang: None,
             instant: false,
             hint_mark: None,
+            recent: Default::default(),
             toast: None,
         };
         g.apply_volumes();

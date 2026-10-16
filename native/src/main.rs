@@ -339,6 +339,7 @@ impl ApplicationHandler for Runner {
                     Key::Named(NamedKey::F1) => self.send(Event::KeyDown(0x70)),
                     Key::Named(NamedKey::F5) => self.send(Event::KeyDown(0x74)),
                     Key::Named(NamedKey::F9) => self.send(Event::KeyDown(0x78)),
+                    Key::Named(NamedKey::F12) => self.send(Event::KeyDown(0x7b)),
                     Key::Named(NamedKey::Space) => self.send(Event::Highlight(true)),
                     Key::Named(NamedKey::Enter) => self.send(Event::KeyDown(KEY_ENTER)),
                     Key::Named(NamedKey::Backspace) => self.send(Event::KeyDown(KEY_BACK)),
