@@ -18,17 +18,35 @@ Saves and settings live in the per-user data folder (`ztraceny-ostrov/`). The ga
 
 | Key | |
 |---|---|
-| mouse | as in the original: left = act, right = inventory / drop held item |
-| `I` | inventory |
-| hold `Space` | outline every hotspot (F1: always / off) |
-| `F5` / `F9` | quick save / quick load |
-| `F12` | bug report: saves from before the last 10 actions, action log, screenshot → `Bugs/` |
-| `H` | hint: outlines the next useful hotspot |
-| `F1` | settings: volumes, subtitles, hotspots, fullscreen, scaling, centred cut-scenes, autosave on room change |
+| mouse | left = act, right = inventory / put the held item away |
 | double-click | run there |
+| `I` | inventory: click an item to take it, click another to combine, move off the grid to use it |
+| hold `Space` | outline every hotspot (F1: always / off) |
+| `H` | hint: outlines the next useful hotspot |
+| `F5` / `F9` | quick save / quick load (the game also autosaves on every room change and on quit) |
+| `F1` | settings (below) |
+| `F12` | bug report: saves from before the last 10 actions, action log and screenshot → `Bugs/` |
 | `Esc` | skip speech, animation or video |
-| `F11`, `Cmd+F` (macOS), `Alt+Enter` | fullscreen |
-| controller | stick = pointer, A = click, B = right click, Y = inventory, Start = Esc |
+| `Cmd+F` / `Alt+Enter` / `F11` | fullscreen |
+
+| Controller | |
+|---|---|
+| left stick | pointer |
+| A / RT · B / LT | left / right click |
+| LB / RB, d-pad ← → | jump to the previous / next hotspot |
+| d-pad ↑ (hold) | show hotspots |
+| X · Y | hint · inventory |
+| Start · Select | skip (Esc) · settings |
+
+Touch (browser): tap = click, hold = right click.
+
+**F1 settings:** volumes, subtitles, hotspots, fullscreen, picture (sharp integer / sharp fill /
+smooth / CRT / xBRZ), centred cut-scenes, widescreen side fill, smooth motion (walking is
+interpolated between the game's 70 ms ticks), autosave on room change, inventory style (modern /
+original), language, text size 1×/2×. Stored in `settings.cfg` next to the saves.
+
+**Translations:** the game text can be replaced from `lang-<code>.txt` in the data folder
+(`T<n>`/`I<n>`/`L<n>` lines, tab, text). Translations are not part of this repository.
 
 ## Layout
 
