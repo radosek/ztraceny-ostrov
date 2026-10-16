@@ -101,8 +101,10 @@ impl Game {
                 heap.push((score(self), usize::MAX - n, self.save(b"hint", &thumb), first));
             }
         }
-        let _ = self.load(&start);
+        // Restore the drawing flags first: loading then repaints the room from scratch, wiping
+        // anything the search's anims drew into the buffers.
         (self.auto, self.auto_draw, self.instant, self.rng, self.base) = saved;
+        let _ = self.load(&start);
         self.redraw = true;
         found
     }

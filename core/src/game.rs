@@ -328,7 +328,9 @@ impl Game {
             && room == self.rooms[self.room].id
             && let Some(r) = self.rooms[self.room].regions.get(region as usize)
         {
-            crate::extras::draw_outline(&r.points, frame, 0x07ff);
+            if (until - now) / 250 % 2 == 0 {
+                crate::extras::draw_outline(&r.points, frame, 0xffe0);
+            }
         }
         if let Some((text, until)) = &self.toast {
             if now < *until {

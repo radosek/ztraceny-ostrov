@@ -191,6 +191,7 @@ impl Game {
     /// Decode the next frame of `slot` into the given buffers, wrapping like 0x44f744: after the
     /// last frame back to frame 1 if the file loops (has a ring frame), else to 0.
     pub(crate) fn slot_step(&mut self, s: &mut AnimSlot, back: bool, bg: bool) {
+        let (back, bg) = if self.auto && !self.auto_draw { (false, false) } else { (back, bg) };
         let a = self.a.clone();
         let d = a.raw(s.archive, s.index);
         let mut sink = self.sink(back, bg, 0);

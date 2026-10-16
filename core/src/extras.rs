@@ -23,11 +23,13 @@ fn line(f: &mut [u16], (x0, y0): (i32, i32), (x1, y1): (i32, i32), c: u16) {
     }
 }
 
+/// Thick outline (3 px, dark edge) for the hint marker.
 pub fn draw_outline(points: &[(i32, i32)], f: &mut [u16], c: u16) {
     for i in 0..points.len() {
         let (a, b) = (points[i], points[(i + 1) % points.len()]);
-        line(f, a, b, c);
-        line(f, (a.0 + 1, a.1), (b.0 + 1, b.1), c);
+        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1), (0, 0)] {
+            line(f, (a.0 + dx, a.1 + dy), (b.0 + dx, b.1 + dy), c);
+        }
     }
 }
 
