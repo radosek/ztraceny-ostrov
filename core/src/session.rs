@@ -342,6 +342,16 @@ impl Game {
             if self.input.right {
                 break if modern { -1 } else { selected };
             }
+            // Modern: holding an item and leaving the item grid closes the inventory, so the
+            // next click in the room uses the item.
+            let rows = (self.chars[HERO].items.len() as i32 + INV_COLS - 1) / INV_COLS;
+            let inside_grid = mx >= INV_X - 30
+                && mx < INV_X + INV_COLS * INV_CELL + 30
+                && my >= INV_Y - 30
+                && my < INV_Y + rows.max(1) * INV_CELL + 30;
+            if modern && selected >= 0 && !inside_grid && !self.input.left {
+                break selected;
+            }
             if self.input.left {
                 match (under, selected) {
                     (Some(i), -1) => selected = i,

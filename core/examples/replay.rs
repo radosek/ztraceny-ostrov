@@ -15,8 +15,20 @@ fn dump(io: &Io, path: &std::path::Path) {
 async fn run(mut g: Game, steps: Vec<(i32, i32, i32)>, out: std::path::PathBuf, first: usize, last: usize) {
     g.auto = std::env::var("REPLAY_REALTIME").is_err();
     g.auto_draw = true;
-    g.new_game();
-    g.run_enter().await;
+    if let Ok(path) = std::env::var("REPLAY_SAVE") {
+        g.load(&std::fs::read(path).unwrap()).unwrap();
+    } else {
+        g.new_game();
+        g.run_enter().await;
+    }
+    eprintln!("start room {:#x}", g.cur_id());
+    if g.redraw {
+        g.redraw_chars(true);
+        g.redraw = false;
+    }
+    g.frame();
+    g.present();
+    dump(&g.io.borrow(), &out.join("start.png"));
     for (n, &(room, r, it)) in steps.iter().enumerate().take(last + 1) {
         if g.cur_id() != room {
             eprintln!("step {n}: expected room {room:#x}, in {:#x}", g.cur_id());
