@@ -340,11 +340,10 @@ impl Game {
         if self.chars[HERO].y < self.chars[CHAR2].y { (0..40).collect() } else { (0..40).rev().collect() }
     }
 
+    /// Erase every drawn character, including ones that left the room since they were drawn.
     pub(crate) fn hide_chars(&mut self) {
         for c in self.order().into_iter().rev() {
-            if self.in_room(c) {
-                self.hide_char(c);
-            }
+            self.hide_char(c);
         }
     }
 

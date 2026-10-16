@@ -425,6 +425,13 @@ impl Game {
         self.load_anim(1);
         self.redraw_room();
         self.load_mask();
+        // Save-unders hold the previous room; start the new one from its clean background.
+        for c in &mut self.char_saves {
+            *c = None;
+        }
+        if !self.auto {
+            self.scr.bg_to_back();
+        }
         self.room_changed = true;
     }
 

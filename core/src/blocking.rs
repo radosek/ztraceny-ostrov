@@ -328,9 +328,9 @@ impl Game {
                 self.show_char(c);
             }
         }
-        if hide_hero || hide_c2 {
-            self.redraw = true;
-        }
+        // The anim's last frame (often the hero mid-action) is only on the screen, not in the
+        // background: rebuild from the background on the next tick.
+        self.redraw = true;
         self.clear_input();
         self.reset_base();
     }
