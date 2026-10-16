@@ -276,9 +276,10 @@ impl Game {
 
     /// Inventory screen 0x463d94. Returns the held item or −1.
     pub async fn inventory(&mut self) -> i32 {
+        let modern = self.io.borrow().settings.modern_inventory;
         self.hide_overlays();
         let saved_back = self.scr.back.clone();
-        let mut selected: i32 = -1;
+        let mut selected: i32 = if modern { self.held } else { -1 };
         let a = self.a.clone();
         let icons = a.sprite_list(0x11).ok();
         let draw = |g: &mut Self, selected: i32| {
@@ -299,7 +300,7 @@ impl Game {
                 }
             }
         };
-        self.cursor.item = None;
+        self.cursor.item = (selected >= 0).then_some(selected);
         self.cursor.base = 0;
         draw(self, selected);
         self.clear_input();
@@ -334,10 +335,11 @@ impl Game {
                 break -1;
             }
             if self.input.right {
-                break selected;
+                break if modern { -1 } else { selected };
             }
             if self.input.left {
                 match (under, selected) {
+                    (Some(i), -1) if modern => break i,
                     (Some(i), -1) => selected = i,
                     (Some(i), s) if i == s => selected = -1,
                     (Some(i), s) => {
@@ -346,6 +348,7 @@ impl Game {
                         }
                         draw(self, selected);
                     }
+                    (None, _) if modern => break selected,
                     (None, _) => selected = -1,
                 }
                 self.cursor.item = (selected >= 0).then_some(selected);

@@ -640,6 +640,7 @@ impl Game {
                 format!("Obraz: {}", if s.scaling == Scaling::Sharp { "ostré pixely" } else { "na celou plochu" }),
                 format!("Animace na střed: {}", on(s.center_cutscenes)),
                 format!("Ukládat při změně místnosti: {}", on(s.autosave_rooms)),
+                format!("Inventář: {}", if s.modern_inventory { "moderní (klik = vzít)" } else { "původní" }),
                 "Zavřít (Esc)".to_string(),
             ]
             .into_iter()
@@ -709,6 +710,7 @@ impl Game {
                         6 => s.scaling = if s.scaling == Scaling::Sharp { Scaling::Fill } else { Scaling::Sharp },
                         7 => s.center_cutscenes = !s.center_cutscenes,
                         8 => s.autosave_rooms = !s.autosave_rooms,
+                        9 => s.modern_inventory = !s.modern_inventory,
                         _ => {}
                     }
                     let text = s.to_text().into_bytes();
@@ -717,7 +719,7 @@ impl Game {
                     io.writes.push(("Main.cfg".into(), cfg));
                 }
                 self.apply_volumes();
-                if i == 9 {
+                if i == 10 {
                     break;
                 }
             }

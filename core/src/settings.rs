@@ -22,11 +22,13 @@ pub struct Settings {
     pub scaling: Scaling,
     pub center_cutscenes: bool,
     pub autosave_rooms: bool,
+    /// Click an item to take it (inventory closes); open it while holding one to combine.
+    pub modern_inventory: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { hotspots: Hotspots::HoldSpace, fullscreen: false, scaling: Scaling::Fill, center_cutscenes: false, autosave_rooms: true }
+        Self { hotspots: Hotspots::HoldSpace, fullscreen: false, scaling: Scaling::Fill, center_cutscenes: false, autosave_rooms: true, modern_inventory: true }
     }
 }
 
@@ -51,6 +53,7 @@ impl Settings {
                 "scaling" => s.scaling = if v == "sharp" { Scaling::Sharp } else { Scaling::Fill },
                 "center_cutscenes" => s.center_cutscenes = on,
                 "autosave_rooms" => s.autosave_rooms = on,
+                "modern_inventory" => s.modern_inventory = on,
                 _ => {}
             }
         }
@@ -59,7 +62,7 @@ impl Settings {
 
     pub fn to_text(&self) -> String {
         format!(
-            "hotspots = {}\nfullscreen = {}\nscaling = {}\ncenter_cutscenes = {}\nautosave_rooms = {}\n",
+            "hotspots = {}\nfullscreen = {}\nscaling = {}\ncenter_cutscenes = {}\nautosave_rooms = {}\nmodern_inventory = {}\n",
             match self.hotspots {
                 Hotspots::HoldSpace => "hold-space",
                 Hotspots::Always => "always",
@@ -68,7 +71,8 @@ impl Settings {
             self.fullscreen,
             if self.scaling == Scaling::Sharp { "sharp" } else { "fill" },
             self.center_cutscenes,
-            self.autosave_rooms
+            self.autosave_rooms,
+            self.modern_inventory
         )
     }
 }
@@ -79,7 +83,7 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let s = Settings { hotspots: Hotspots::Always, fullscreen: true, scaling: Scaling::Sharp, center_cutscenes: true, autosave_rooms: false };
+        let s = Settings { hotspots: Hotspots::Always, fullscreen: true, scaling: Scaling::Sharp, center_cutscenes: true, autosave_rooms: false, modern_inventory: false };
         assert_eq!(Settings::parse(&s.to_text()), s);
     }
 }
