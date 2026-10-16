@@ -28,6 +28,12 @@ fn key(g: &Game) -> u64 {
     h.finish()
 }
 
+/// The three GameOver scripts (0x64b, 0x64c, 0x64f) are all endings (cut-scene sequences);
+/// keep searching until the 0x64f one, which plays the longest finale.
+fn ending_room(room: i32) -> bool {
+    room == 0x64f
+}
+
 fn score(g: &Game) -> i64 {
     g.flags.iter().map(|b| b.count_ones() as i64).sum::<i64>() * 10 + g.chars[0].items.len() as i64
 }
@@ -45,6 +51,7 @@ async fn explore(mut g: Game, max: usize) -> String {
     let mut best = (0i64, Vec::new());
     let mut rooms_seen = HashSet::new();
     let mut dead = HashSet::new();
+    let mut deaths = HashSet::new();
     while let Some((sc, _, save, path)) = heap.pop() {
         states += 1;
         if states > max {
@@ -92,7 +99,13 @@ async fn explore(mut g: Game, max: usize) -> String {
             if g.game_over {
                 let mut p = path.clone();
                 p.push(format!("{room:#x}:{r}:{it}"));
-                return format!("GAME OVER reached after {states} states, path length {}\n{}", p.len(), p.join("\n"));
+                if (0x64f..=0x654).contains(&g.cur_id()) || g.cur_id() == 0x64f || ending_room(room) {
+                    return format!("ENDING reached after {states} states, path length {}\n{}", p.len(), p.join("\n"));
+                }
+                if deaths.insert((room, r, it)) {
+                    eprintln!("death: room {room:#x} region {r} item {it}");
+                }
+                continue;
             }
             let k = key(&g);
             if k == key_before {
