@@ -460,6 +460,7 @@ impl Game {
         let mut last_room = self.cur_id();
         loop {
             self.music_tick();
+            self.ctx = "main";
             let talk = self.talking_now();
             self.hide_overlays();
             let at = (self.input.mouse_x, self.input.mouse_y);

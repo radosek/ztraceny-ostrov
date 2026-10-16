@@ -245,49 +245,53 @@ impl Sink for Indexed {
     }
 }
 
-/// Records the bounding box of everything a file draws (x0, y0, x1, y1 exclusive).
-#[derive(Default)]
-pub struct Bounds(pub Option<(usize, usize, usize, usize)>);
+/// Which playfield pixels a file ever draws with a colour different from `bg` (RGB565
+/// through `lut`), i.e. where it shows something other than the room behind it.
+pub struct Coverage {
+    pub hit: Vec<bool>,
+    bg: Vec<u16>,
+    lut: [u16; 256],
+}
 
-impl Bounds {
-    fn add(&mut self, o: usize, n: usize) {
-        if n == 0 {
-            return;
+impl Coverage {
+    fn put(&mut self, o: usize, v: u8) {
+        if o < self.hit.len() && self.lut[v as usize] != self.bg[o] {
+            self.hit[o] = true;
         }
-        let (y, x0, x1) = (o / PLAYFIELD_W, o % PLAYFIELD_W, (o % PLAYFIELD_W + n).min(PLAYFIELD_W));
-        self.0 = Some(match self.0 {
-            None => (x0, y, x1, y + 1),
-            Some((a, b, c, d)) => (a.min(x0), b.min(y), c.max(x1), d.max(y + 1)),
-        });
     }
 
-    pub fn of(d: &[u8]) -> Self {
-        let mut b = Bounds::default();
+    pub fn of(d: &[u8], bg: &[u16], lut: [u16; 256]) -> Self {
+        let n = PLAYFIELD_W * PLAYFIELD_H;
+        let mut c = Coverage { hit: vec![false; n], bg: bg[..n].to_vec(), lut };
         if let Ok(h) = header(d) {
             let mut pos = h.start();
             for _ in 0..h.frames {
-                if !decode_frame(d, &mut pos, false, &mut b).unwrap_or(false) {
+                if !decode_frame(d, &mut pos, false, &mut c).unwrap_or(false) {
                     break;
                 }
             }
         }
-        b
+        c
     }
 
-    pub fn hits(&self, x0: i32, y0: i32, x1: i32, y1: i32) -> bool {
-        self.0.is_some_and(|(a, b, c, d)| x0 < c as i32 && x1 > a as i32 && y0 < d as i32 && y1 > b as i32)
+    pub fn covered(&self, x: i32, y: i32) -> bool {
+        (0..PLAYFIELD_W as i32).contains(&x) && (0..PLAYFIELD_H as i32).contains(&y) && self.hit[y as usize * PLAYFIELD_W + x as usize]
     }
 }
 
-impl Sink for Bounds {
+impl Sink for Coverage {
     fn pixels(&mut self, o: usize, px: &[u8]) {
-        self.add(o, px.len())
+        for (i, &v) in px.iter().enumerate() {
+            self.put(o + i, v);
+        }
     }
-    fn fill(&mut self, o: usize, n: usize, _: u8) {
-        self.add(o, n)
+    fn fill(&mut self, o: usize, n: usize, v: u8) {
+        for i in 0..n {
+            self.put(o + i, v);
+        }
     }
     fn raw_row(&mut self, o: usize, px: &[u8]) {
-        self.add(o, px.len())
+        self.pixels(o, px)
     }
     fn color(&mut self, _: usize, _: [u8; 3]) {}
 }

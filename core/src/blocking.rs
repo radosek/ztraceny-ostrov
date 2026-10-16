@@ -117,6 +117,7 @@ impl Game {
 
     /// Say 0x45da88.
     pub async fn say(&mut self, line: i32) {
+        self.ctx = "say";
         self.prep();
         self.duck(true);
         self.say_line(line);
@@ -156,6 +157,7 @@ impl Game {
 
     /// Dialog 0x45dd90.
     pub async fn run_dialog(&mut self, n: i32) {
+        self.ctx = "dialog";
         self.prep();
         self.duck(true);
         let first = self.a.dialogs.get(n.max(0) as usize).map_or(0, |d| d.0 as i32);
@@ -207,6 +209,7 @@ impl Game {
 
     /// 0x45f81c: mode 0 = wait `ticks` (skippable), 1/2 = until back anim 1/2 completes a cycle.
     pub async fn delay(&mut self, ticks: i32, mode: i32) {
+        self.ctx = "delay";
         self.prep();
         if mode > 0 && self.anim_cycle_done(mode as usize - 1) {
             return;
@@ -238,6 +241,7 @@ impl Game {
 
     /// StaticWalk 0x45e2cc.
     pub async fn static_walk(&mut self, x: i32, y: i32, dir: i32, c: i32) {
+        self.ctx = "static_walk";
         let c = self.char_index(c);
         self.prep();
         if let Some(r) = self.room_index(self.chars[c].room_id).map(|i| self.rooms[i].clone()) {
@@ -264,6 +268,7 @@ impl Game {
 
     /// StaticTurn 0x45e510.
     pub async fn static_turn(&mut self, dir: i32, c: i32) {
+        self.ctx = "static_turn";
         let c = self.char_index(c);
         self.prep();
         self.chars[c].turn(dir as i8);
@@ -286,6 +291,7 @@ impl Game {
 
     /// PlayPartial 0x45ac50.
     pub async fn play_partial(&mut self, idx: i32, delay: i32, mode: i32, fx: i32) {
+        self.ctx = "partial";
         let delay = if delay == 0 { DEFAULT_FRAME_MS } else { delay as u64 };
         if mode == 2 {
             self.delay(0, 1).await;
@@ -303,12 +309,13 @@ impl Game {
         // itself draws them.
         // Port fix: the original also hides them when the anim never draws where they stand
         // (e.g. another character talking), so they blink out; keep them in that case.
-        let bounds = flc::Bounds::of(d);
+        // An anim that shows the character itself repaints nearly all of their pixels.
+        let cov = flc::Coverage::of(d, &self.scr.bg, self.scr.lut);
         let keep = |g: &Game, c: usize| {
             g.chars[c].room_id == g.cur_id()
                 && match c {
-                    HERO => matches!(mode, 3 | 4 | 10) || !g.char_box(c).is_some_and(|(x0, y0, x1, y1)| bounds.hits(x0, y0, x1, y1)),
-                    CHAR2 => mode <= 3 || mode == 10 || !g.char_box(c).is_some_and(|(x0, y0, x1, y1)| bounds.hits(x0, y0, x1, y1)),
+                    HERO => matches!(mode, 3 | 4 | 10) || g.char_coverage(c, &cov) < 0.3,
+                    CHAR2 => mode <= 3 || mode == 10 || g.char_coverage(c, &cov) < 0.3,
                     _ => true,
                 }
         };
@@ -324,10 +331,17 @@ impl Game {
         let mut pos = h.start();
         self.reset_base();
         let mut skipping = false;
+        let kept: Vec<usize> = self.order().into_iter().filter(|&c| keep(self, c)).collect();
         for _ in 0..h.frames {
             self.music_tick();
+            for &c in kept.iter().rev() {
+                self.hide_char(c);
+            }
             let mut sink = self.sink(true, mode == 10, 0);
             let _ = flc::decode_frame(d, &mut pos, false, &mut sink);
+            for &c in &kept {
+                self.show_char(c);
+            }
         if !skipping {
                 self.present();
                 self.wait_ms(delay).await;
@@ -349,6 +363,7 @@ impl Game {
 
     /// PlayFull 0x45b2f0.
     pub async fn play_full(&mut self, idx: i32, delay: i32, stop_music: bool, mode: i32, fx: i32) {
+        self.ctx = "full";
         let delay = if delay == 0 { DEFAULT_FRAME_MS } else { delay as u64 };
         self.cursor_hide();
         self.tip_hide(false);

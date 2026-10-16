@@ -73,7 +73,7 @@ fn main() {
         io.borrow_mut().audio.clear();
         if let Some(d) = &every {
             let io = io.borrow();
-            if io.frames != last && io.room == 0x200 && t > 1000 {
+            if io.frames != last && io.room == std::env::var("REPLAY_ROOM").ok().and_then(|r| i32::from_str_radix(&r, 16).ok()).unwrap_or(0x200) && t > 1000 {
                 last = io.frames;
                 dump(&io, &d.join(format!("f{t:08}.png")));
             }

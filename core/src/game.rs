@@ -139,6 +139,8 @@ pub struct Game {
     pub auto_draw: bool,
     /// The click that started the current script was a double click: walks run.
     pub run_next: bool,
+    /// Debug label of the routine currently presenting frames.
+    pub ctx: &'static str,
     /// Short message shown on top of the game (quick save etc.) until the given time.
     pub toast: Option<(Vec<u8>, u64)>,
 }
@@ -216,6 +218,7 @@ impl Game {
             show_hotspots: false,
             auto_draw: false,
             run_next: false,
+            ctx: "",
             toast: None,
         };
         g.apply_volumes();
@@ -283,6 +286,25 @@ impl Game {
     pub fn present(&mut self) {
         if self.auto && !self.auto_draw {
             return;
+        }
+        if std::env::var_os("OSTROV_DEBUG").is_some()
+            && self.chars[HERO].room_id == self.cur_id()
+            && let Some((x0, y0, x1, y1)) = self.char_box(HERO)
+        {
+            let mut same = true;
+            let mut any = false;
+            for y in y0.max(0)..y1.min(420) {
+                for x in x0.max(0)..x1.min(640) {
+                    let o = y as usize * 640 + x as usize;
+                    any = true;
+                    if self.scr.back[o] != self.scr.bg[o] {
+                        same = false;
+                    }
+                }
+            }
+            if any && same {
+                eprintln!("hero invisible room {:#x} t={} ctx={} talking={}", self.cur_id(), self.clock.now(), self.ctx, self.chars.iter().any(|c| c.talking));
+            }
         }
         let now = self.clock.now();
         let mut io = self.io.borrow_mut();
