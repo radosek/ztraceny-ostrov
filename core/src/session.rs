@@ -169,6 +169,18 @@ impl Game {
         io.writes.push((format!("{dir}/screen.rgb565"), screen));
     }
 
+    /// Test entry: a click as the main loop would make it, then run the resulting script.
+    pub async fn click_at(&mut self, x: i32, y: i32, item: i32) {
+        let walk_only = self.hover(x, y).0 == 2;
+        self.click(x, y, walk_only, item).await;
+        while self.pending != -1 {
+            self.frame();
+            self.present();
+            self.wait_tick().await;
+            self.script_progress().await;
+        }
+    }
+
     /// 0x45a204.
     async fn click(&mut self, x: i32, y: i32, walk_only: bool, item: i32) {
         self.record(format!("click room {:#x} at {x},{y} item {item}", self.cur_id()));

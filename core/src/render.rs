@@ -114,12 +114,12 @@ impl Game {
         }
         let r = &self.rooms[self.room].regions[ri];
         let (img, kind, x, y) = (r.image as i32, r.image_type, r.x as i32, r.y as i32);
-        if img > 0 {
-            if let Some(i) = self.image(Arc8::Backgnd, img, kind) {
-                self.scr.blit(Target::Bg, &i, x, y, true, VIEW_H);
-            }
-        } else if img < 0 {
-            self.erase_image(img, kind, x, y);
+        // RedrawRoom 0x45b5b0: positive images are blitted opaque (0x44fec4), negative ones
+        // transparent (0x44ffa0, transparent key = the image's own).
+        if img != 0
+            && let Some(i) = self.image(Arc8::Backgnd, img.abs(), kind)
+        {
+            self.scr.blit(Target::Bg, &i, x, y, img < 0, VIEW_H);
         }
     }
 

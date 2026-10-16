@@ -29,6 +29,21 @@ async fn run(mut g: Game, steps: Vec<(i32, i32, i32)>, out: std::path::PathBuf, 
     g.frame();
     g.present();
     dump(&g.io.borrow(), &out.join("start.png"));
+    if let Ok(c) = std::env::var("REPLAY_CLICK") {
+        let v: Vec<i32> = c.split(',').map(|x| x.parse().unwrap()).collect();
+        g.click_at(v[0], v[1], v[2]).await;
+        for _ in 0..30 {
+            if g.redraw {
+                g.redraw_chars(true);
+                g.redraw = false;
+            }
+            g.frame();
+            g.present();
+            g.wait_tick().await;
+        }
+        dump(&g.io.borrow(), &out.join("after.png"));
+        return;
+    }
     for (n, &(room, r, it)) in steps.iter().enumerate().take(last + 1) {
         if g.cur_id() != room {
             eprintln!("step {n}: expected room {room:#x}, in {:#x}", g.cur_id());
