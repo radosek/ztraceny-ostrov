@@ -42,7 +42,11 @@ fn main() {
             }
             "m" => io.input.apply(Event::MouseMove(v[0], v[1])),
             "k" => io.input.apply(Event::KeyDown(v[0] as u16)),
+            "q" => io.quit = true,
             _ => {}
+        }
+        for (n, d) in io.writes.drain(..) {
+            eprintln!("t={t} wrote {n} ({} bytes)", d.len());
         }
         if !io.frame.is_empty() && k == "t" {
             eprintln!("t={t} frames={} room={:#x}", io.frames, io.room);

@@ -307,6 +307,10 @@ impl Game {
         loop {
             self.music_tick();
             self.wait_tick().await;
+            if self.quitting() {
+                self.close_panel(p);
+                return 2;
+            }
             let i = &self.input;
             let any = i.key_down || i.left || i.left_up || i.moved || i.right || !i.chars.is_empty();
             let mut blink = false;
@@ -548,6 +552,10 @@ impl Game {
                     None
                 })
                 .await;
+            if self.quitting() {
+                out = MenuResult::Quit;
+                break;
+            }
             match ev {
                 10 => {
                     out = MenuResult::Continue;

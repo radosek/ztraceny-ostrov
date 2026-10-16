@@ -245,6 +245,15 @@ impl Game {
         let mut io = self.io.borrow_mut();
         self.input = io.input.clone();
         io.input.clear();
+        if io.quit {
+            self.input.key_down = true;
+            self.input.key = crate::input::KEY_ESC;
+        }
+    }
+
+    /// The frontend asked to quit: every loop unwinds as if ESC was pressed.
+    pub fn quitting(&self) -> bool {
+        self.io.borrow().quit
     }
 
     pub fn clear_input(&mut self) {

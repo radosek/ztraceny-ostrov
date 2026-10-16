@@ -394,6 +394,9 @@ impl Game {
             if self.held >= 0 && !self.chars[HERO].items.contains(&(self.held as u8)) {
                 self.held = -1;
             }
+            if self.quitting() {
+                return Exit::Quit;
+            }
             let (mx, my) = (self.input.mouse_x, self.input.mouse_y);
             if talk {
                 if self.dialog > 0 {

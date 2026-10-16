@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- Dev-only test page (not shipped in dist). Serve a directory that has this
+     repo's web/ as /web and the game folder as /game, then open
+     /web/dev.html?src=/game/ to load the game files over HTTP instead of the
+     folder picker. Without ?src it is the plain player. -->
+<html lang="cs">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ztracený Ostrov dev</title>
+<style>html, body { margin: 0; height: 100%; font: 14px system-ui; background: #c0c0c0; } #player { height: 100vh; }</style>
+<div id="player"></div>
+<script type="module">
+  import { mount } from "./dist/player.js";
+  const q = new URLSearchParams(location.search);
+  const player = mount(document.getElementById("player"), { lang: q.get("lang") ?? "cs", onQuit: () => console.log("quit") });
+  window.player = player;
+  const src = q.get("src");
+  if (src) {
+    const names = ["Anim.dat", "Backgnd.dat", "Partial.dat", "Data.dat", "Music.dat", "Fx.dat", "Fx2.dat", "Speech.dat", "Logo.avi", "Titulky.avi", "Main.cfg"];
+    const files = [];
+    for (const n of names) {
+      const res = await fetch(new URL(n, new URL(src, location.href)));
+      if (res.ok) files.push(new File([await res.blob()], n));
+    }
+    await player.insert(files);
+    console.log("dev: inserted", files.length, "files");
+  }
+</script>

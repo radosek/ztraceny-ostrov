@@ -1,0 +1,14 @@
+{
+  "name": "ztraceny-ostrov-web-player",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "./build.sh"
+  },
+  "dependencies": {
+    "idb": "8.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

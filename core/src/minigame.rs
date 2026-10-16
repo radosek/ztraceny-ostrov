@@ -186,6 +186,9 @@ pub async fn cannon(g: &mut Game) -> bool {
         g.present();
         g.wait_ms(FRAME_MS).await;
         g.music_tick();
+        if g.quitting() {
+            break false;
+        }
         let (mx, my) = (g.input.mouse_x, g.input.mouse_y);
         let hover = cell(mx, my);
         g.cursor_hide();
