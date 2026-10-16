@@ -640,10 +640,19 @@ impl Game {
                     }
                 ),
                 format!("{}: {}", t("Celá obrazovka", "Fullscreen"), on(s.fullscreen)),
-                format!("{}: {}", t("Obraz", "Picture"), if s.scaling == Scaling::Sharp { t("ostré pixely", "sharp pixels") } else { t("na celou plochu", "fill window") }),
+                format!(
+                    "{}: {}",
+                    t("Obraz", "Picture"),
+                    match s.scaling {
+                        Scaling::Sharp => t("ostré pixely, celé násobky", "sharp, integer scale"),
+                        Scaling::Fill => t("ostré pixely, celá plocha", "sharp, fill window"),
+                        Scaling::Smooth => t("vyhlazený", "smooth"),
+                        Scaling::Crt => t("CRT monitor", "CRT monitor"),
+                    }
+                ),
                 format!("{}: {}", t("Animace na střed", "Centre cut-scenes"), on(s.center_cutscenes)),
                 format!("{}: {}", t("Ukládat při změně místnosti", "Autosave on room change"), on(s.autosave_rooms)),
-                format!("{}: {}", t("Inventář", "Inventory"), if s.modern_inventory { t("moderní (klik = vzít)", "modern (click = take)") } else { t("původní", "original") }),
+                format!("{}: {}", t("Inventář", "Inventory"), if s.modern_inventory { t("moderní (klik vedle = zavřít)", "modern (click outside = close)") } else { t("původní", "original") }),
                 format!("{}: {}", t("Jazyk", "Language"), if s.language == "cs" { "čeština" } else { "English" }),
                 format!("{}: {}x", t("Velikost textu", "Text size"), s.text_scale.max(1)),
                 t("Nahrát automatickou pozici", "Load autosave").to_string(),
@@ -714,7 +723,7 @@ impl Game {
                             }
                         }
                         5 => s.fullscreen = !s.fullscreen,
-                        6 => s.scaling = if s.scaling == Scaling::Sharp { Scaling::Fill } else { Scaling::Sharp },
+                        6 => s.scaling = s.scaling.next(),
                         7 => s.center_cutscenes = !s.center_cutscenes,
                         8 => s.autosave_rooms = !s.autosave_rooms,
                         9 => s.modern_inventory = !s.modern_inventory,

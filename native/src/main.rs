@@ -10,6 +10,8 @@ use ostrov_core::{
     screen::rgb565_to_rgba,
 };
 use pixels::{Pixels, SurfaceTexture};
+
+mod filter;
 use std::{
     collections::{HashMap, VecDeque},
     num::NonZero,
@@ -138,6 +140,7 @@ struct Runner {
     last_frame: u64,
     mods: winit::keyboard::ModifiersState,
     scaling: ostrov_core::settings::Scaling,
+    filter: Option<filter::Filter>,
 }
 
 impl Runner {
@@ -228,7 +231,7 @@ impl Runner {
             if let Some(p) = self.pixels.as_mut() {
                 p.set_scaling_mode(match s.scaling {
                     ostrov_core::settings::Scaling::Sharp => pixels::ScalingMode::PixelPerfect,
-                    ostrov_core::settings::Scaling::Fill => pixels::ScalingMode::Fill,
+                    _ => pixels::ScalingMode::Fill,
                 });
             }
         }
@@ -259,6 +262,7 @@ impl ApplicationHandler for Runner {
         let size = window.inner_size();
         let surface = SurfaceTexture::new(size.width, size.height, window.clone());
         let pixels = Pixels::new(640, 480, surface).expect("pixels");
+        self.filter = Some(filter::Filter::new(pixels.context(), pixels.surface_texture_format()));
         window.set_cursor_visible(false);
         self.window = Some(window);
         self.pixels = Some(pixels);
@@ -361,7 +365,23 @@ impl ApplicationHandler for Runner {
             WindowEvent::RedrawRequested => {
                 self.step();
                 if let Some(p) = &self.pixels {
-                    let _ = p.render();
+                    use ostrov_core::settings::Scaling;
+                    let mode = match self.scaling {
+                        Scaling::Smooth => 1,
+                        Scaling::Crt => 2,
+                        _ => 0,
+                    };
+                    match (&self.filter, mode) {
+                        (Some(f), 1 | 2) => {
+                            let _ = p.render_with(|enc, target, ctx| {
+                                f.render(enc, target, ctx, ctx.scaling_renderer.clip_rect(), mode);
+                                Ok(())
+                            });
+                        }
+                        _ => {
+                            let _ = p.render();
+                        }
+                    }
                 }
                 if self.app.finished() {
                     el.exit();
@@ -408,6 +428,7 @@ fn main() -> Result<()> {
         last_frame: 0,
         mods: Default::default(),
         scaling: ostrov_core::settings::Scaling::Sharp,
+        filter: None,
     };
     el.run_app(&mut r)?;
     Ok(())

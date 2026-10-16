@@ -13,6 +13,21 @@ pub enum Scaling {
     Sharp,
     /// Fill the window keeping 4:3, sharp pixels.
     Fill,
+    /// Fill, bilinear filtered.
+    Smooth,
+    /// Fill, scanlines and shadow mask.
+    Crt,
+}
+
+impl Scaling {
+    pub fn next(self) -> Self {
+        match self {
+            Scaling::Fill => Scaling::Sharp,
+            Scaling::Sharp => Scaling::Smooth,
+            Scaling::Smooth => Scaling::Crt,
+            Scaling::Crt => Scaling::Fill,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,7 +37,8 @@ pub struct Settings {
     pub scaling: Scaling,
     pub center_cutscenes: bool,
     pub autosave_rooms: bool,
-    /// Click an item to take it (inventory closes); open it while holding one to combine.
+    /// Click an item to take it, click another to combine, click outside the grid to close
+    /// holding it; right click closes empty-handed.
     pub modern_inventory: bool,
     /// "cs" = original text, otherwise the code of a `lang-<code>.txt` translation.
     pub language: String,
@@ -54,7 +70,14 @@ impl Settings {
                     }
                 }
                 "fullscreen" => s.fullscreen = on,
-                "scaling" => s.scaling = if v == "sharp" { Scaling::Sharp } else { Scaling::Fill },
+                "scaling" => {
+                    s.scaling = match v {
+                        "sharp" => Scaling::Sharp,
+                        "smooth" => Scaling::Smooth,
+                        "crt" => Scaling::Crt,
+                        _ => Scaling::Fill,
+                    }
+                }
                 "center_cutscenes" => s.center_cutscenes = on,
                 "autosave_rooms" => s.autosave_rooms = on,
                 "modern_inventory" => s.modern_inventory = on,
@@ -75,7 +98,12 @@ impl Settings {
                 Hotspots::Off => "off",
             },
             self.fullscreen,
-            if self.scaling == Scaling::Sharp { "sharp" } else { "fill" },
+            match self.scaling {
+                Scaling::Sharp => "sharp",
+                Scaling::Fill => "fill",
+                Scaling::Smooth => "smooth",
+                Scaling::Crt => "crt",
+            },
             self.center_cutscenes,
             self.autosave_rooms,
             self.modern_inventory,

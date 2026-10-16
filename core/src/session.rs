@@ -344,7 +344,6 @@ impl Game {
             }
             if self.input.left {
                 match (under, selected) {
-                    (Some(i), -1) if modern => break i,
                     (Some(i), -1) => selected = i,
                     (Some(i), s) if i == s => selected = -1,
                     (Some(i), s) => {
@@ -540,6 +539,8 @@ impl Game {
             }
             if self.held >= 0 && !self.chars[HERO].items.contains(&(self.held as u8)) {
                 self.held = -1;
+                self.cursor_hide();
+                self.cursor.item = None;
             }
             if self.quitting() {
                 return Exit::Quit;

@@ -114,6 +114,17 @@ impl Game {
         self.send(Event::Highlight(on));
     }
 
+    /// Picture setting from the F1 panel: 0 sharp integer, 1 sharp fill, 2 smooth, 3 CRT.
+    pub fn scaling(&self) -> u8 {
+        use ostrov_core::settings::Scaling;
+        match self.app.io.borrow().settings.scaling {
+            Scaling::Sharp => 0,
+            Scaling::Fill => 1,
+            Scaling::Smooth => 2,
+            Scaling::Crt => 3,
+        }
+    }
+
     /// Asks the game to quit; it writes the autosave and Main.cfg on its next ticks.
     pub fn quit(&self) {
         self.app.io.borrow_mut().quit = true;

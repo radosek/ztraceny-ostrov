@@ -77,6 +77,9 @@ const STYLE = `
 .zo-stage { flex: 1; min-height: 240px; background: #000; position: relative; }
 .zo-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
   image-rendering: pixelated; cursor: none; touch-action: none; outline: none; display: block; }
+.zo-crt::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 1px, rgba(0,0,0,.28) 2px 3px);
+  box-shadow: inset 0 0 120px rgba(0,0,0,.55); }
 [hidden] { display: none !important; }
 @media (max-width: 560px) { .zo-tray { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .zo-disc { animation: none !important; } }
@@ -322,6 +325,7 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     raf = requestAnimationFrame(loop);
   }
 
+  let lastScaling = -1;
   function loop(now) {
     raf = requestAnimationFrame(loop);
     if (!game) return;
@@ -330,6 +334,12 @@ export function mount(root, { lang = "cs", onQuit } = {}) {
     pollPad();
     game.tick(clock);
     if (game.frame(image.data)) ctx.putImageData(image, 0, 0);
+    const mode = game.scaling();
+    if (mode !== lastScaling) {
+      lastScaling = mode;
+      ref.canvas.style.imageRendering = mode >= 2 ? "auto" : "pixelated";
+      ref.stage.classList.toggle("zo-crt", mode === 3);
+    }
     playAudio(game.takeAudio());
     persist().catch(console.error);
     if (game.finished()) {
