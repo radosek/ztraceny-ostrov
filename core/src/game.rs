@@ -36,6 +36,8 @@ pub struct Io {
     /// Files the game may read (saves). Filled by the frontend.
     pub files: std::collections::HashMap<String, Vec<u8>>,
     pub quit: bool,
+    /// Current room id at the last present (for tools and tests).
+    pub room: i32,
 }
 
 pub type IoRef = Rc<RefCell<Io>>;
@@ -123,6 +125,10 @@ pub struct Game {
     pub redraw: bool,
     /// "That doesn't work" line chosen by StartRegion, spoken by the caller.
     pub queued_say: Option<i32>,
+    /// Save file chosen in the Load dialog.
+    pub menu_file: Option<String>,
+    /// The last menu loaded a save.
+    pub menu_loaded: bool,
 }
 
 /// 0x459714 playlists: [variant][set] = tracks.
@@ -192,6 +198,8 @@ impl Game {
             wrap: 40,
             redraw: true,
             queued_say: None,
+            menu_file: None,
+            menu_loaded: false,
         };
         g.apply_volumes();
         g
@@ -252,6 +260,7 @@ impl Game {
         mixer.render_until(now, audio);
         frame.clone_from(&self.scr.back);
         *frames += 1;
+        io.room = self.rooms.get(self.room).map_or(-1, |r| r.id);
     }
 
     /// Wait for the next 70 ms tick boundary and collect input (the inner busy loop of every

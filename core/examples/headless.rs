@@ -45,7 +45,7 @@ fn main() {
             _ => {}
         }
         if !io.frame.is_empty() && k == "t" {
-            eprintln!("t={t} frames={}", io.frames);
+            eprintln!("t={t} frames={} room={:#x}", io.frames, io.room);
         }
     }
 }

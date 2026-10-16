@@ -17,29 +17,24 @@ pub struct App {
 
 async fn main(mut g: Game) {
     g.video("Logo.avi", 0x1fa).await;
-    let mut intro = true;
+    let mut menu: Option<(bool, bool)> = g.io.borrow().files.contains_key(AUTOSAVE).then_some((false, true));
     loop {
-        let auto = g.io.borrow().files.get(AUTOSAVE).cloned();
-        if let Some(save) = auto {
-            g.new_game();
-            match g.menu(false, true).await {
-                MenuResult::Quit => break,
-                MenuResult::New => {}
-                _ => {
-                    if g.load(&save).is_ok() {
-                        intro = false;
-                        if let Exit::Quit = g.resume().await {
-                            break;
-                        }
-                        continue;
-                    }
+        let exit = match menu {
+            Some((in_game, from_autosave)) => {
+                g.new_game();
+                match g.menu(in_game, from_autosave).await {
+                    MenuResult::Quit => break,
+                    MenuResult::Load | MenuResult::Continue if from_autosave || g.menu_loaded => g.resume().await,
+                    _ => g.run_session(true).await,
                 }
             }
-        }
-        match g.run_session(intro).await {
+            None => g.run_session(true).await,
+        };
+        menu = match exit {
             Exit::Quit => break,
-            Exit::NewGame => intro = true,
-        }
+            Exit::GameOver => Some((false, false)),
+            Exit::NewGame => None,
+        };
     }
     let thumb = crate::save::thumbnail(&g.scr.back);
     let data = g.save(b"AUTOSAVE", &thumb);

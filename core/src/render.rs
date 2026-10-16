@@ -266,7 +266,8 @@ impl Game {
         if self.chars[c].is_anim_npc {
             return 0;
         }
-        self.char_sprite(c).map_or(0, |i| i.height as i32)
+        let s = self.chars[c].scale;
+        self.char_sprite(c).map_or(0, |i| dround(i.height as f64 / s))
     }
 
     fn depth(&self, y: i32) -> u8 {

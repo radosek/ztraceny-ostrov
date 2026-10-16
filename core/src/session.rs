@@ -23,6 +23,7 @@ fn in_menu_button(x: i32, y: i32) -> bool {
 
 pub enum Exit {
     NewGame,
+    GameOver,
     Quit,
 }
 
@@ -360,11 +361,14 @@ impl Game {
         self.reset_base();
         let mut was_talking = !self.talking_now();
         let mut panel_hover = -2;
+        let mut hover_at = (-1, -1);
         loop {
             self.music_tick();
             let talk = self.talking_now();
             self.hide_overlays();
-            if talk != was_talking || self.input.moved || panel_hover == -2 {
+            let at = (self.input.mouse_x, self.input.mouse_y);
+            if talk != was_talking || at != hover_at || panel_hover == -2 {
+                hover_at = at;
                 let h = self.update_hover();
                 if h != panel_hover {
                     panel_hover = h;
@@ -434,7 +438,7 @@ impl Game {
             self.script_progress().await;
             if self.game_over {
                 self.video("Titulky.avi", 0x1f9).await;
-                return Exit::NewGame;
+                return Exit::GameOver;
             }
             if self.io.borrow().quit {
                 return Exit::Quit;
