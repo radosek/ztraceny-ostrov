@@ -84,6 +84,16 @@ fn load_files() -> HashMap<String, Vec<u8>> {
     if let Ok(d) = std::fs::read(state_dir().join(ostrov_core::settings::FILE)) {
         m.insert(ostrov_core::settings::FILE.to_string(), d);
     }
+    if let Ok(rd) = std::fs::read_dir(state_dir()) {
+        for e in rd.flatten() {
+            let n = e.file_name().to_string_lossy().into_owned();
+            if n.starts_with("lang-") && n.ends_with(".txt")
+                && let Ok(d) = std::fs::read(e.path())
+            {
+                m.insert(n, d);
+            }
+        }
+    }
     m
 }
 

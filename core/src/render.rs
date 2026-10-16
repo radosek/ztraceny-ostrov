@@ -450,9 +450,10 @@ impl Game {
 
     /// SetText + SetPos (clamped). The tip must be hidden.
     pub(crate) fn tip_set(&mut self, speech: bool, text: &[u8], x: i32, y: i32) {
-        let wrap = self.wrap;
+        let k = self.io.borrow().settings.text_scale.clamp(1, 2) as i32;
+        let wrap = if k == 2 { self.wrap.min(32) } else { self.wrap };
         let t = if speech { &mut self.speech } else { &mut self.hover };
-        t.layout = text_render::layout(text, wrap);
+        t.layout = text_render::layout_scaled(text, wrap, k);
         let (cx, cy) = text_render::clamp(&t.layout, x, y);
         t.x = cx;
         t.y = cy;

@@ -143,11 +143,11 @@ impl Game {
             }
             Kind::Edit { bg, enabled, caret_visible, text, caret } => {
                 self.scr.blit(Target::Back, bg, w.x, w.y, false, H);
-                let l = text_render::Layout { lines: vec![text.clone()], width: 9 * text.len() as i32 + 1, height: 17 };
+                let l = text_render::Layout { lines: vec![text.clone()], width: 9 * text.len() as i32 + 1, height: 17, scale: 1 };
                 if *enabled {
                     text_render::draw(&mut self.scr, &font, &l, w.x + 6, w.y + 4, 2);
                     if *caret_visible {
-                        let c = text_render::Layout { lines: vec![b"_".to_vec()], width: 10, height: 17 };
+                        let c = text_render::Layout { lines: vec![b"_".to_vec()], width: 10, height: 17, scale: 1 };
                         text_render::draw(&mut self.scr, &font, &c, w.x + 4 + 9 * *caret as i32, w.y + 4, 1);
                     }
                 } else {
@@ -618,7 +618,7 @@ impl Game {
         use crate::settings::{Hotspots, Scaling};
         let saved = self.scr.back.clone();
         let font = self.a.font.clone();
-        let (x0, y0, w, row) = (120, 70, 400, 26);
+        let (x0, y0, w, row) = (110, 20, 420, 22);
         let labels = |g: &Game| -> Vec<Vec<u8>> {
             let s = &g.io.borrow().settings;
             let c = &g.cfg;
@@ -641,6 +641,8 @@ impl Game {
                 format!("Animace na střed: {}", on(s.center_cutscenes)),
                 format!("Ukládat při změně místnosti: {}", on(s.autosave_rooms)),
                 format!("Inventář: {}", if s.modern_inventory { "moderní (klik = vzít)" } else { "původní" }),
+                format!("Jazyk: {}", if s.language == "cs" { "čeština" } else { "English" }),
+                format!("Velikost textu: {}x", s.text_scale.max(1)),
                 "Nahrát automatickou pozici".to_string(),
                 "Nahrát rychlou pozici (F9)".to_string(),
                 "Zavřít (Esc)".to_string(),
@@ -713,6 +715,8 @@ impl Game {
                         7 => s.center_cutscenes = !s.center_cutscenes,
                         8 => s.autosave_rooms = !s.autosave_rooms,
                         9 => s.modern_inventory = !s.modern_inventory,
+                        10 => s.language = if s.language == "cs" { "en".into() } else { "cs".into() },
+                        11 => s.text_scale = if s.text_scale >= 2 { 1 } else { 2 },
                         _ => {}
                     }
                     let text = s.to_text().into_bytes();
@@ -721,8 +725,12 @@ impl Game {
                     io.writes.push(("Main.cfg".into(), cfg));
                 }
                 self.apply_volumes();
-                if i == 10 || i == 11 {
-                    let path = if i == 10 { crate::app::AUTOSAVE } else { crate::session::QUICKSAVE };
+                if i == 10 && self.io.borrow().settings.language != "cs" && self.translation().is_none() {
+                    let code = self.io.borrow().settings.language.clone();
+                    self.toast(&crate::reader::to_cp1250(&format!("Chybí soubor {}", crate::lang::file(&code))));
+                }
+                if i == 12 || i == 13 {
+                    let path = if i == 12 { crate::app::AUTOSAVE } else { crate::session::QUICKSAVE };
                     let data = self.io.borrow().files.get(path).cloned();
                     match data.map(|d| self.load(&d)) {
                         Some(Ok(())) => {
@@ -735,7 +743,7 @@ impl Game {
                         _ => self.toast(&crate::reader::to_cp1250("Ta pozice zatím neexistuje")),
                     }
                 }
-                if i == 12 {
+                if i == 14 {
                     break;
                 }
             }

@@ -118,7 +118,7 @@ impl Game {
     }
 
     /// Hover 0x45b7a0: cursor id and label.
-    fn hover(&self, x: i32, y: i32) -> (i32, Option<Vec<u8>>) {
+    fn hover(&mut self, x: i32, y: i32) -> (i32, Option<Vec<u8>>) {
         if y >= VIEW_H as i32 {
             let id = if in_inventory_button(x, y) {
                 10
@@ -130,9 +130,12 @@ impl Game {
             return (id, None);
         }
         if let Some(ri) = self.region_at(x, y) {
-            let r = &self.cur().regions[ri];
-            let label = (r.label > 0).then(|| self.a.labels.get(r.label as usize).cloned()).flatten();
-            return (r.cursor as i32, label);
+            let (label, cursor) = {
+                let r = &self.cur().regions[ri];
+                (r.label, r.cursor)
+            };
+            let label = (label > 0).then(|| self.label_name(label as usize)).flatten();
+            return (cursor as i32, label);
         }
         if inside(&self.cur().walk.points, x, y) { (2, None) } else { (5, None) }
     }
@@ -330,8 +333,7 @@ impl Game {
             self.cursor_hide();
             self.tip_hide(false);
             label = under.filter(|&i| i != selected);
-            if let Some(t) = label.and_then(|i| a.items.get(i as usize)) {
-                let t = t.clone();
+            if let Some(t) = label.and_then(|i| self.item_name(i as usize)) {
                 self.tip_set(false, &t, mx + 10, my + 10);
             }
             if self.input.esc() {

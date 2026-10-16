@@ -82,12 +82,18 @@ pub struct Layout {
     pub lines: Vec<Vec<u8>>,
     pub width: i32,
     pub height: i32,
+    /// Pixel scale (port extra; 1 = original).
+    pub scale: i32,
 }
 
 pub fn layout(text: &[u8], max_col: usize) -> Layout {
+    layout_scaled(text, max_col, 1)
+}
+
+pub fn layout_scaled(text: &[u8], max_col: usize, scale: i32) -> Layout {
     let lines = wrap(text, max_col);
     let max_len = lines.iter().map(|l| l.len()).max().unwrap_or(0) as i32;
-    Layout { width: 9 * max_len + 1, height: LINE_H * lines.len() as i32, lines }
+    Layout { width: (9 * max_len + 1) * scale, height: LINE_H * lines.len() as i32 * scale, lines, scale }
 }
 
 /// Clamp 0x4517c4.
@@ -104,29 +110,37 @@ pub fn clamp(l: &Layout, x: i32, y: i32) -> (i32, i32) {
 }
 
 /// Glyph 0x4516e8 (unclipped in the original; clipped here only to stay in bounds).
-fn draw_glyph(scr: &mut Screen, font: &[u8], g: usize, x: i32, y: i32, color: u8) {
+fn draw_glyph(scr: &mut Screen, font: &[u8], g: usize, x: i32, y: i32, color: u8, k: i32) {
     let Some(gd) = font.get(g * GW * GH..(g + 1) * GW * GH) else { return };
     let ink = scr.lut[color as usize];
     let outline = scr.lut[0];
     for r in 0..GH {
         for c in 0..GW {
             let v = gd[r * GW + c];
-            let (px, py) = (x + c as i32, y + r as i32);
-            if v == 0 || px < 0 || py < 0 || px >= W as i32 || py >= H as i32 {
+            if v == 0 {
                 continue;
             }
-            scr.back[py as usize * W + px as usize] = if v == 2 { outline } else { ink };
+            for sy in 0..k {
+                for sx in 0..k {
+                    let (px, py) = (x + c as i32 * k + sx, y + r as i32 * k + sy);
+                    if px < 0 || py < 0 || px >= W as i32 || py >= H as i32 {
+                        continue;
+                    }
+                    scr.back[py as usize * W + px as usize] = if v == 2 { outline } else { ink };
+                }
+            }
         }
     }
 }
 
 /// Draw 0x451a74: each line centred in the box.
 pub fn draw(scr: &mut Screen, font: &[u8], l: &Layout, left: i32, top: i32, color: u8) {
+    let s = l.scale.max(1);
     for (i, line) in l.lines.iter().enumerate() {
-        let x = left + (l.width - 9 * line.len() as i32) / 2;
-        let y = top + LINE_H * i as i32;
+        let x = left + (l.width - 9 * s * line.len() as i32) / 2;
+        let y = top + LINE_H * s * i as i32;
         for (k, &c) in line.iter().enumerate() {
-            draw_glyph(scr, font, glyph(c), x + ADVANCE * k as i32, y, color);
+            draw_glyph(scr, font, glyph(c), x + ADVANCE * s * k as i32, y, color, s);
         }
     }
 }

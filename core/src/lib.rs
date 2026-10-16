@@ -12,6 +12,7 @@ pub mod geom;
 pub mod gfx;
 pub mod input;
 pub mod minigame;
+pub mod lang;
 pub mod mixer;
 pub mod reader;
 pub mod render;

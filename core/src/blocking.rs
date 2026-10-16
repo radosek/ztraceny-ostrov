@@ -6,10 +6,33 @@ use crate::flc;
 use crate::game::{CHAR2, DEFAULT_FRAME_MS, Game, HERO};
 use crate::mixer::Channel;
 use crate::screen::{VIEW_H, W};
+use std::rc::Rc;
 
 impl Game {
-    pub(crate) fn text(&self, i: i32) -> Vec<u8> {
-        self.a.texts.get(i.max(0) as usize).cloned().unwrap_or_default()
+    /// The translation selected in the settings, loaded on first use.
+    pub(crate) fn translation(&mut self) -> Option<Rc<crate::lang::Lang>> {
+        let code = self.io.borrow().settings.language.clone();
+        if code == "cs" {
+            return None;
+        }
+        if self.lang.as_ref().is_none_or(|(c, _)| *c != code) {
+            let text = self.io.borrow().files.get(&crate::lang::file(&code)).map(|b| String::from_utf8_lossy(b).into_owned());
+            self.lang = text.map(|t| (code.clone(), Rc::new(crate::lang::Lang::parse(&t))));
+        }
+        self.lang.as_ref().map(|(_, l)| l.clone())
+    }
+
+    pub(crate) fn text(&mut self, i: i32) -> Vec<u8> {
+        let i = i.max(0) as usize;
+        self.translation().and_then(|l| l.texts.get(&i).cloned()).or_else(|| self.a.texts.get(i).cloned()).unwrap_or_default()
+    }
+
+    pub(crate) fn item_name(&mut self, i: usize) -> Option<Vec<u8>> {
+        self.translation().and_then(|l| l.items.get(&i).cloned()).or_else(|| self.a.items.get(i).cloned())
+    }
+
+    pub(crate) fn label_name(&mut self, i: usize) -> Option<Vec<u8>> {
+        self.translation().and_then(|l| l.labels.get(&i).cloned()).or_else(|| self.a.labels.get(i).cloned())
     }
 
     pub(crate) fn char_index(&self, c: i32) -> usize {

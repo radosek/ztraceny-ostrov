@@ -141,6 +141,8 @@ pub struct Game {
     pub run_next: bool,
     /// Debug label of the routine currently presenting frames.
     pub ctx: &'static str,
+    /// Loaded translation and its code.
+    pub lang: Option<(String, Rc<crate::lang::Lang>)>,
     /// Short message shown on top of the game (quick save etc.) until the given time.
     pub toast: Option<(Vec<u8>, u64)>,
 }
@@ -219,6 +221,7 @@ impl Game {
             auto_draw: false,
             run_next: false,
             ctx: "",
+            lang: None,
             toast: None,
         };
         g.apply_volumes();
