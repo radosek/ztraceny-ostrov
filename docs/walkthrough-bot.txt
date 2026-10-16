@@ -1,4 +1,4 @@
-GAME OVER reached after 3011 states, path length 437
+ENDING reached after 3014 states, path length 439
 0x200:1:-1
 0x200:2:-1
 0x200:3:-1
@@ -435,4 +435,6 @@ GAME OVER reached after 3011 states, path length 437
 0x64a:0:-1
 0x64a:1:-1
 0x64a:3:-1
-0x64b:1:-1
+0x64b:2049:-1
+0x64c:2:15
+0x64f:1:-1
