@@ -244,3 +244,50 @@ impl Sink for Indexed {
         }
     }
 }
+
+/// Records the bounding box of everything a file draws (x0, y0, x1, y1 exclusive).
+#[derive(Default)]
+pub struct Bounds(pub Option<(usize, usize, usize, usize)>);
+
+impl Bounds {
+    fn add(&mut self, o: usize, n: usize) {
+        if n == 0 {
+            return;
+        }
+        let (y, x0, x1) = (o / PLAYFIELD_W, o % PLAYFIELD_W, (o % PLAYFIELD_W + n).min(PLAYFIELD_W));
+        self.0 = Some(match self.0 {
+            None => (x0, y, x1, y + 1),
+            Some((a, b, c, d)) => (a.min(x0), b.min(y), c.max(x1), d.max(y + 1)),
+        });
+    }
+
+    pub fn of(d: &[u8]) -> Self {
+        let mut b = Bounds::default();
+        if let Ok(h) = header(d) {
+            let mut pos = h.start();
+            for _ in 0..h.frames {
+                if !decode_frame(d, &mut pos, false, &mut b).unwrap_or(false) {
+                    break;
+                }
+            }
+        }
+        b
+    }
+
+    pub fn hits(&self, x0: i32, y0: i32, x1: i32, y1: i32) -> bool {
+        self.0.is_some_and(|(a, b, c, d)| x0 < c as i32 && x1 > a as i32 && y0 < d as i32 && y1 > b as i32)
+    }
+}
+
+impl Sink for Bounds {
+    fn pixels(&mut self, o: usize, px: &[u8]) {
+        self.add(o, px.len())
+    }
+    fn fill(&mut self, o: usize, n: usize, _: u8) {
+        self.add(o, n)
+    }
+    fn raw_row(&mut self, o: usize, px: &[u8]) {
+        self.add(o, px.len())
+    }
+    fn color(&mut self, _: usize, _: [u8; 3]) {}
+}

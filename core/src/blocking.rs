@@ -298,9 +298,26 @@ impl Game {
         if fx > 0 {
             self.play(Channel::Fx, Arc8::Fx, fx);
         }
-        let hide_hero = matches!(mode, 3 | 4 | 10);
-        let hide_c2 = self.chars[CHAR2].room_id == self.cur_id() && matches!(mode, 0..=3 | 10);
+        // 0x45ad47..0x45ae93: hide hero and companion, then show the hero again only for
+        // modes 3/4/10 and the companion only for modes <= 3 or 10. In other modes the anim
+        // itself draws them.
+        // Port fix: the original also hides them when the anim never draws where they stand
+        // (e.g. another character talking), so they blink out; keep them in that case.
+        let bounds = flc::Bounds::of(d);
+        let keep = |g: &Game, c: usize| {
+            g.chars[c].room_id == g.cur_id()
+                && match c {
+                    HERO => matches!(mode, 3 | 4 | 10) || !g.char_box(c).is_some_and(|(x0, y0, x1, y1)| bounds.hits(x0, y0, x1, y1)),
+                    CHAR2 => mode <= 3 || mode == 10 || !g.char_box(c).is_some_and(|(x0, y0, x1, y1)| bounds.hits(x0, y0, x1, y1)),
+                    _ => true,
+                }
+        };
         self.hide_chars();
+        for c in self.order() {
+            if keep(self, c) {
+                self.show_char(c);
+            }
+        }
         if mode == 1 {
             self.stamp_anim(0);
         }
@@ -311,7 +328,7 @@ impl Game {
             self.music_tick();
             let mut sink = self.sink(true, mode == 10, 0);
             let _ = flc::decode_frame(d, &mut pos, false, &mut sink);
-            if !skipping {
+        if !skipping {
                 self.present();
                 self.wait_ms(delay).await;
                 if self.input.esc() {
@@ -323,11 +340,6 @@ impl Game {
             self.present();
         }
         self.stop(Channel::Fx);
-        for c in 0..40 {
-            if self.chars[c].room_id == self.cur_id() && !((c == HERO && hide_hero) || (c == CHAR2 && hide_c2)) {
-                self.show_char(c);
-            }
-        }
         // The anim's last frame (often the hero mid-action) is only on the screen, not in the
         // background: rebuild from the background on the next tick.
         self.redraw = true;

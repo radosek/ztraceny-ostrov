@@ -325,6 +325,17 @@ impl Game {
         self.scr.sprite(&img, x, y, s, flip, depth, true);
     }
 
+    /// Screen rectangle of a character's current sprite (x0, y0, x1, y1 exclusive).
+    pub(crate) fn char_box(&self, c: usize) -> Option<(i32, i32, i32, i32)> {
+        let ch = &self.chars[c];
+        if ch.is_anim_npc || ch.x == -255 {
+            return None;
+        }
+        let img = self.char_sprite(c)?;
+        let (w, h) = (dround(img.width as f64 / ch.scale), dround(img.height as f64 / ch.scale));
+        Some((ch.x - w / 2, ch.y - h, ch.x - w / 2 + w, ch.y))
+    }
+
     /// Hide 0x457080.
     pub(crate) fn hide_char(&mut self, c: usize) {
         if let Some(r) = self.char_saves[c].take() {
@@ -336,7 +347,7 @@ impl Game {
         self.chars[c].room_id == self.cur_id()
     }
 
-    fn order(&self) -> Vec<usize> {
+    pub(crate) fn order(&self) -> Vec<usize> {
         if self.chars[HERO].y < self.chars[CHAR2].y { (0..40).collect() } else { (0..40).rev().collect() }
     }
 
